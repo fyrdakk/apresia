@@ -33,6 +33,7 @@ type Dokumen = {
     status_verifikasi: string;
     catatan_admin: string | null;
     created_at: string;
+    portofolio_judul?: string;
 };
 
 // Nilai value harus sesuai dengan constraint dokumen_bukti_kategori_check di Supabase.
@@ -49,6 +50,17 @@ const KATEGORI_DOKUMEN = [
 const getKategoriLabel = (value: string) =>
     KATEGORI_DOKUMEN.find((item) => item.value === value)?.label ?? value;
 
+// Kategori pada tabel portofolio menggunakan label,
+// sedangkan dokumen_bukti menggunakan kode kategori huruf kecil.
+const KATEGORI_PORTOFOLIO_KE_DOKUMEN: Record<string, string> = {
+    "Organisasi": "organisasi",
+    "Karya Ilmiah": "karya_ilmiah",
+    "Program Kreativitas Mahasiswa (PKM)": "pkm",
+    "Kontribusi Mahasiswa": "kontribusi",
+    "Prestasi / Penghargaan": "prestasi",
+    "Sertifikasi": "sertifikasi",
+};
+
 export default function DokumenPage() {
     const supabase = useMemo(() => createClient(), []);
 
@@ -57,7 +69,6 @@ export default function DokumenPage() {
     const [dokumen, setDokumen] = useState<Dokumen[]>([]);
 
     const [portofolioId, setPortofolioId] = useState("");
-    const [kategori, setKategori] = useState("");
     const [file, setFile] = useState<File | null>(null);
 
     const [loading, setLoading] = useState(true);
@@ -99,8 +110,18 @@ export default function DokumenPage() {
             if (portofolioResult.error) throw portofolioResult.error;
             if (dokumenResult.error) throw dokumenResult.error;
 
-            setPortofolio(portofolioResult.data || []);
-            setDokumen(dokumenResult.data || []);
+            const daftarPortofolio = (portofolioResult.data || []) as Portofolio[];
+            const daftarDokumen = (dokumenResult.data || []) as Dokumen[];
+
+            setPortofolio(daftarPortofolio);
+            setDokumen(
+                daftarDokumen.map((item) => ({
+                    ...item,
+                    portofolio_judul:
+                        daftarPortofolio.find((p) => p.id === item.portofolio_id)?.judul ??
+                        "Portofolio tidak ditemukan",
+                }))
+            );
         } catch (err) {
             const message =
                 err instanceof Error ? err.message : "Gagal memuat data dokumen.";
@@ -119,13 +140,22 @@ export default function DokumenPage() {
         setError("");
         setSuccess("");
 
-        if (!portofolioId) {
+        const portofolioTerpilih = portofolio.find(
+            (item) => item.id === portofolioId
+        );
+
+        if (!portofolioTerpilih) {
             setError("Pilih portofolio yang berkaitan dengan dokumen.");
             return;
         }
 
-        if (!kategori) {
-            setError("Pilih kategori dokumen.");
+        const kategoriDokumen =
+            KATEGORI_PORTOFOLIO_KE_DOKUMEN[portofolioTerpilih.kategori];
+
+        if (!kategoriDokumen) {
+            setError(
+                `Kategori "${portofolioTerpilih.kategori}" belum dikenali. Silakan edit portofolio dan pilih kategori yang tersedia, lalu unggah kembali dokumennya.`
+            );
             return;
         }
 
@@ -173,7 +203,7 @@ export default function DokumenPage() {
                 .insert({
                     mahasiswa_id: userId,
                     portofolio_id: portofolioId,
-                    kategori,
+                    kategori: kategoriDokumen,
                     nama_file: file.name,
                     storage_path: filePath,
                     tipe_file: file.type,
@@ -191,7 +221,6 @@ export default function DokumenPage() {
             }
 
             setFile(null);
-            setKategori("");
             setPortofolioId("");
             setSuccess("Dokumen berhasil diunggah dan menunggu verifikasi admin.");
 
@@ -526,25 +555,6 @@ export default function DokumenPage() {
                                 </select>
                             </div>
 
-                            <div>
-                                <label className="mb-2 block text-sm font-medium text-gray-700">
-                                    Kategori Dokumen
-                                </label>
-                                <select
-                                    value={kategori}
-                                    onChange={(e) => setKategori(e.target.value)}
-                                    required
-                                    className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm outline-none focus:border-green-600 focus:ring-2 focus:ring-green-100"
-                                >
-                                    <option value="">Pilih kategori</option>
-                                    {KATEGORI_DOKUMEN.map((item) => (
-                                        <option key={item.value} value={item.value}>
-                                            {item.label}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-
                             <div className="md:col-span-2">
                                 <label className="mb-2 block text-sm font-medium text-gray-700">
                                     Pilih File
@@ -690,9 +700,12 @@ export default function DokumenPage() {
                                                 </div>
 
                                                 <div className="min-w-0">
-                                                    <h3 className="break-all font-semibold text-gray-900">
-                                                        {item.nama_file}
+                                                    <h3 className="font-semibold text-gray-900">
+                                                        {item.portofolio_judul || "Portofolio tidak ditemukan"}
                                                     </h3>
+                                                    <p className="mt-1 break-all text-sm text-gray-600">
+                                                        File: {item.nama_file}
+                                                    </p>
                                                     <p className="mt-1 text-sm text-gray-500">
                                                         {getKategoriLabel(item.kategori)}
                                                     </p>
