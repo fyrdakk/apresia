@@ -260,6 +260,7 @@ export default function RankingPage() {
     }
   };
 
+
   // Meminta penjelasan hasil ranking melalui Groq
   const handleAIExplanation = async (item: RankingItem) => {
     setSelectedStudent(item);
@@ -267,50 +268,69 @@ export default function RankingPage() {
     setAiError("");
     setAiLoading(true);
 
+    // Penjelasan cadangan jika Groq gagal
+    const createFallbackExplanation = () => {
+      const nama = item.mahasiswa?.nama_lengkap ?? "Mahasiswa";
+      const preferensi = Number(item.nilai_preferensi);
+
+      const nilai =
+        Number.isFinite(preferensi)
+          ? preferensi.toFixed(4)
+          : String(item.nilai_preferensi ?? "-");
+
+      return `Berdasarkan hasil perhitungan metode Simple Additive Weighting (SAW), ${nama} berada pada peringkat ${item.peringkat} dengan nilai preferensi ${nilai}. Hasil tersebut diperoleh melalui pengolahan lima kriteria penilaian yang telah ditetapkan dalam sistem APRESIA.
+
+Penilaian meliputi IPK sebesar ${item.nilai_c1 ?? "-"}, kemampuan bahasa Inggris sebesar ${item.nilai_c2 ?? "-"}, organisasi sebesar ${item.nilai_c3 ?? "-"}, karya ilmiah dan kontribusi sebesar ${item.nilai_c4 ?? "-"}, serta prestasi dan sertifikasi sebesar ${item.nilai_c5 ?? "-"}. Hasil pemeringkatan ini dapat menjadi bahan pertimbangan panitia dalam menentukan penerima penghargaan mahasiswa.`;
+    };
+
     try {
-      const response = await fetch("/api/ai-explanation", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          nama: item.mahasiswa?.nama_lengkap ?? "Mahasiswa",
-          peringkat: item.peringkat,
-          nilai_c1: item.nilai_c1,
-          nilai_c2: item.nilai_c2,
-          nilai_c3: item.nilai_c3,
-          nilai_c4: item.nilai_c4,
-          nilai_c5: item.nilai_c5,
-          nilai_preferensi: item.nilai_preferensi,
-        }),
-      });
+      const controller = new AbortController();
 
-      // Menangani respons API dengan lebih aman
-      const result = await response.json().catch(() => null);
+      // Maksimal menunggu 12 detik
+      const timeout = setTimeout(() => controller.abort(), 12000);
 
-      if (!response.ok) {
-        throw new Error(
-          result?.error ?? "Gagal mendapatkan penjelasan hasil seleksi."
-        );
+      try {
+        const response = await fetch("/api/ai-explanation", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            nama: item.mahasiswa?.nama_lengkap ?? "Mahasiswa",
+            peringkat: item.peringkat,
+            nilai_c1: item.nilai_c1,
+            nilai_c2: item.nilai_c2,
+            nilai_c3: item.nilai_c3,
+            nilai_c4: item.nilai_c4,
+            nilai_c5: item.nilai_c5,
+            nilai_preferensi: item.nilai_preferensi,
+          }),
+          signal: controller.signal,
+        });
+
+        const result = await response.json().catch(() => null);
+
+        if (!response.ok || !result?.explanation) {
+          throw new Error("Layanan AI tidak tersedia.");
+        }
+
+        setAiExplanation(result.explanation);
+
+        // Beri informasi jika menggunakan penjelasan cadangan
+        if (result.source === "fallback") {
+          console.info(
+            "Groq tidak tersedia. Sistem menggunakan penjelasan cadangan."
+          );
+        }
+      } finally {
+        clearTimeout(timeout);
       }
-
-      if (
-        !result ||
-        typeof result.explanation !== "string" ||
-        !result.explanation.trim()
-      ) {
-        throw new Error("Penjelasan tidak tersedia. Silakan coba kembali.");
-      }
-
-      setAiExplanation(result.explanation);
     } catch (err) {
       console.error("Gagal mendapatkan penjelasan AI:", err);
 
-      setAiError(
-        err instanceof Error
-          ? err.message
-          : "Terjadi kesalahan saat menghubungi layanan AI."
-      );
+      // Jangan tampilkan error kepada pengguna.
+      // Tetap tampilkan penjelasan berdasarkan data SAW.
+      setAiExplanation(createFallbackExplanation());
     } finally {
       setAiLoading(false);
     }
@@ -607,8 +627,8 @@ export default function RankingPage() {
                           onClick={() => void handlePublikasi(item)}
                           disabled={updatingId === item.id}
                           className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-xs font-medium disabled:opacity-50 ${item.status_publikasi
-                              ? "border border-gray-200 text-gray-600 hover:bg-gray-50"
-                              : "bg-emerald-700 text-white hover:bg-emerald-800"
+                            ? "border border-gray-200 text-gray-600 hover:bg-gray-50"
+                            : "bg-emerald-700 text-white hover:bg-emerald-800"
                             }`}
                         >
                           {updatingId === item.id ? (
