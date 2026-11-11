@@ -2,26 +2,23 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
 import {
-  GraduationCap,
-  FileText,
-  Trophy,
-  ClipboardCheck,
-  ArrowRight,
-  UserRound,
-  CalendarDays,
-  CheckCircle2,
-  Clock,
   AlertCircle,
+  ArrowRight,
+  CheckCircle2,
+  Circle,
   RefreshCw,
-  Loader2,
-  Award,
-  Sparkles,
 } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
+
+const routes = {
+  akademik: "/mahasiswa/data_akademik",
+  portofolio: "/mahasiswa/portofolio_prestasi",
+  dokumen: "/mahasiswa/dokumen",
+  pengumuman: "/mahasiswa/pengumuman",
+};
 
 type Profile = {
-  id: string;
   nama_lengkap: string | null;
   nim: string | null;
   email: string | null;
@@ -30,34 +27,94 @@ type Profile = {
   semester: number | null;
 };
 
-type DashboardData = {
-  profile: Profile | null;
-  akademikCount: number;
-  dokumenCount: number;
-  dokumenTervalidasi: number;
-  dokumenMenunggu: number;
-  dokumenRevisi: number;
-  portofolioCount: number;
+type Dashboard = {
+  profile: Profile;
+  akademik: number;
+  portofolio: number;
+  dokumen: number;
+  tervalidasi: number;
+  menunggu: number;
+  perluRevisi: number;
+  ditolak: number;
   hasil: {
     nilai_preferensi: number | null;
     peringkat: number | null;
   } | null;
 };
 
+const panel = "rounded-xl border border-stone-200 bg-white";
+const primaryLink =
+  "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-emerald-950 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-800";
+const textLink =
+  "inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-emerald-800 hover:underline";
+
+function getNextAction(data: Dashboard) {
+  if (data.perluRevisi + data.ditolak > 0) {
+    return {
+      title: "Ada dokumen yang perlu ditinjau",
+      description:
+        "Buka Dokumen Bukti untuk melihat status dan catatan verifikasi dari admin.",
+      label: "Periksa dokumen",
+      href: routes.dokumen,
+    };
+  }
+
+  if (data.hasil) {
+    return {
+      title: "Hasil seleksi sudah terbit",
+      description: "Lihat peringkat dan rincian nilai SAW di halaman Pengumuman.",
+      label: "Lihat hasil seleksi",
+      href: routes.pengumuman,
+    };
+  }
+
+  if (data.akademik === 0) {
+    return {
+      title: "Isi data akademik",
+      description: "Masukkan IPK dan nilai Bahasa Inggris untuk melengkapi data penilaian.",
+      label: "Buka data akademik",
+      href: routes.akademik,
+    };
+  }
+
+  if (data.portofolio === 0) {
+    return {
+      title: "Tambahkan portofolio prestasi",
+      description: "Catat kegiatan atau prestasi yang akan kamu sertakan dalam seleksi.",
+      label: "Buka portofolio",
+      href: routes.portofolio,
+    };
+  }
+
+  if (data.dokumen === 0) {
+    return {
+      title: "Unggah dokumen bukti",
+      description: "Pilih salah satu portofolio, lalu unggah dokumen pendukungnya.",
+      label: "Buka dokumen bukti",
+      href: routes.dokumen,
+    };
+  }
+
+  if (data.menunggu > 0) {
+    return {
+      title: "Dokumen menunggu verifikasi",
+      description: `${data.menunggu} dokumen masih menunggu pemeriksaan admin.`,
+      label: "Lihat status dokumen",
+      href: routes.dokumen,
+    };
+  }
+
+  return {
+    title: "Ketiga bagian data sudah terisi",
+    description: "Hasil seleksi akan tampil di halaman Pengumuman setelah dipublikasikan.",
+    label: "Buka pengumuman",
+    href: routes.pengumuman,
+  };
+}
+
 export default function MahasiswaPage() {
   const supabase = useMemo(() => createClient(), []);
-
-  const [dashboard, setDashboard] = useState<DashboardData>({
-    profile: null,
-    akademikCount: 0,
-    dokumenCount: 0,
-    dokumenTervalidasi: 0,
-    dokumenMenunggu: 0,
-    dokumenRevisi: 0,
-    portofolioCount: 0,
-    hasil: null,
-  });
-
+  const [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -66,113 +123,66 @@ export default function MahasiswaPage() {
     setError("");
 
     try {
-      // 1. Ambil akun mahasiswa yang sedang login
       const {
         data: { user },
         error: authError,
       } = await supabase.auth.getUser();
 
-      if (authError) throw authError;
-
-      if (!user) {
-        throw new Error("Sesi login tidak ditemukan. Silakan login kembali.");
+      if (authError || !user) {
+        throw new Error("Sesi login tidak ditemukan. Silakan masuk kembali.");
       }
 
-      // 2. Ambil profil mahasiswa
-      const { data: profile, error: profileError } = await supabase
-        .from("login")
-        .select(
-          "id, nama_lengkap, nim, email, fakultas, prodi, semester"
-        )
-        .eq("id", user.id)
-        .eq("role", "mahasiswa")
-        .single();
-
-      if (profileError) throw profileError;
-
-      // 3. Ambil ringkasan data mahasiswa secara bersamaan
-      const [
-        akademikResult,
-        dokumenResult,
-        tervalidasiResult,
-        menungguResult,
-        revisiResult,
-        portofolioResult,
-        hasilResult,
-      ] = await Promise.all([
+      const id = user.id;
+      const countRows = (table: "data_akademik" | "portofolio" | "dokumen_bukti") =>
         supabase
-          .from("data_akademik")
+          .from(table)
           .select("id", { count: "exact", head: true })
-          .eq("mahasiswa_id", user.id),
+          .eq("mahasiswa_id", id);
 
-        supabase
-          .from("dokumen_bukti")
-          .select("id", { count: "exact", head: true })
-          .eq("mahasiswa_id", user.id),
+      const [profile, akademik, portofolio, dokumen, valid, menunggu, revisi, ditolak, hasil] =
+        await Promise.all([
+          supabase
+            .from("login")
+            .select("nama_lengkap, nim, email, fakultas, prodi, semester")
+            .eq("id", id)
+            .eq("role", "mahasiswa")
+            .single(),
+          countRows("data_akademik"),
+          countRows("portofolio"),
+          countRows("dokumen_bukti"),
+          countRows("dokumen_bukti").eq("status_verifikasi", "tervalidasi"),
+          countRows("dokumen_bukti").eq("status_verifikasi", "menunggu"),
+          countRows("dokumen_bukti").eq("status_verifikasi", "perlu_revisi"),
+          countRows("dokumen_bukti").eq("status_verifikasi", "ditolak"),
+          supabase
+            .from("hasil_penilaian")
+            .select("nilai_preferensi, peringkat")
+            .eq("mahasiswa_id", id)
+            .eq("status_publikasi", true)
+            .maybeSingle(),
+        ]);
 
-        supabase
-          .from("dokumen_bukti")
-          .select("id", { count: "exact", head: true })
-          .eq("mahasiswa_id", user.id)
-          .eq("status_verifikasi", "tervalidasi"),
+      const failed = [profile, akademik, portofolio, dokumen, valid, menunggu, revisi, ditolak, hasil]
+        .find((result) => result.error);
 
-        supabase
-          .from("dokumen_bukti")
-          .select("id", { count: "exact", head: true })
-          .eq("mahasiswa_id", user.id)
-          .eq("status_verifikasi", "menunggu"),
-
-        supabase
-          .from("dokumen_bukti")
-          .select("id", { count: "exact", head: true })
-          .eq("mahasiswa_id", user.id)
-          .eq("status_verifikasi", "perlu_revisi"),
-
-        supabase
-          .from("portofolio")
-          .select("id", { count: "exact", head: true })
-          .eq("mahasiswa_id", user.id),
-
-        supabase
-          .from("hasil_penilaian")
-          .select("nilai_preferensi, peringkat")
-          .eq("mahasiswa_id", user.id)
-          .eq("status_publikasi", true)
-          .maybeSingle(),
-      ]);
-
-      const results = [
-        akademikResult,
-        dokumenResult,
-        tervalidasiResult,
-        menungguResult,
-        revisiResult,
-        portofolioResult,
-        hasilResult,
-      ];
-
-      const failedQuery = results.find((result) => result.error);
-
-      if (failedQuery?.error) {
-        throw failedQuery.error;
-      }
+      if (failed?.error) throw failed.error;
+      if (!profile.data) throw new Error("Profil mahasiswa tidak ditemukan.");
 
       setDashboard({
-        profile: profile as Profile,
-        akademikCount: akademikResult.count ?? 0,
-        dokumenCount: dokumenResult.count ?? 0,
-        dokumenTervalidasi: tervalidasiResult.count ?? 0,
-        dokumenMenunggu: menungguResult.count ?? 0,
-        dokumenRevisi: revisiResult.count ?? 0,
-        portofolioCount: portofolioResult.count ?? 0,
-        hasil: hasilResult.data,
+        profile: profile.data,
+        akademik: akademik.count ?? 0,
+        portofolio: portofolio.count ?? 0,
+        dokumen: dokumen.count ?? 0,
+        tervalidasi: valid.count ?? 0,
+        menunggu: menunggu.count ?? 0,
+        perluRevisi: revisi.count ?? 0,
+        ditolak: ditolak.count ?? 0,
+        hasil: hasil.data,
       });
     } catch (err) {
-      console.error("Dashboard mahasiswa error:", err);
+      console.error("Gagal memuat dashboard mahasiswa", err);
       setError(
-        err instanceof Error
-          ? err.message
-          : "Gagal memuat dashboard mahasiswa."
+        err instanceof Error ? err.message : "Data gagal dimuat. Silakan coba lagi."
       );
     } finally {
       setLoading(false);
@@ -180,503 +190,249 @@ export default function MahasiswaPage() {
   }, [supabase]);
 
   useEffect(() => {
-    fetchDashboard();
+    void fetchDashboard();
   }, [fetchDashboard]);
 
-  const profile = dashboard.profile;
-
-  const initialNama = profile?.nama_lengkap
-    ? profile.nama_lengkap
-        .split(" ")
-        .filter(Boolean)
-        .slice(0, 2)
-        .map((word) => word[0])
-        .join("")
-        .toUpperCase()
-    : "M";
-
-  const totalBagian = 3;
-  const bagianLengkap =
-    (dashboard.akademikCount > 0 ? 1 : 0) +
-    (dashboard.dokumenCount > 0 ? 1 : 0) +
-    (dashboard.portofolioCount > 0 ? 1 : 0);
-
-  const persentaseKelengkapan = Math.round(
-    (bagianLengkap / totalBagian) * 100
-  );
-
-  if (loading) {
+  if (!dashboard) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <div className="flex items-center gap-3 text-sm text-gray-500">
-          <Loader2 size={22} className="animate-spin text-emerald-600" />
-          Memuat dashboard mahasiswa...
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="rounded-xl border border-red-200 bg-red-50 p-6">
-        <div className="flex items-start gap-3">
-          <AlertCircle className="mt-0.5 text-red-600" size={22} />
-          <div className="flex-1">
-            <h2 className="font-semibold text-red-800">
-              Dashboard gagal dimuat
-            </h2>
-            <p className="mt-1 text-sm text-red-700">{error}</p>
-            <button
-              onClick={fetchDashboard}
-              className="mt-4 inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
-            >
-              <RefreshCw size={15} />
-              Coba Lagi
+      <main className="py-8">
+        <h1 className="text-3xl">Dashboard mahasiswa</h1>
+        {loading ? (
+          <p role="status" className="mt-4 text-stone-600">
+            Memuat dashboard…
+          </p>
+        ) : (
+          <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-4">
+            <p role="alert" className="flex items-center gap-2 text-sm text-red-800">
+              <AlertCircle size={18} aria-hidden="true" />
+              {error || "Dashboard gagal dimuat."}
+            </p>
+            <button type="button" onClick={fetchDashboard} className={textLink}>
+              Coba lagi
             </button>
           </div>
-        </div>
-      </div>
+        )}
+      </main>
     );
   }
 
+  const { profile, hasil } = dashboard;
+  const action = getNextAction(dashboard);
+
+  const checklist = [
+    {
+      label: "Data akademik",
+      detail: dashboard.akademik > 0 ? "IPK dan data akademik tersimpan" : "Belum ada data",
+      complete: dashboard.akademik > 0,
+      href: routes.akademik,
+    },
+    {
+      label: "Portofolio prestasi",
+      detail: `${dashboard.portofolio} entri tersimpan`,
+      complete: dashboard.portofolio > 0,
+      href: routes.portofolio,
+    },
+    {
+      label: "Dokumen bukti",
+      detail: `${dashboard.dokumen} dokumen diunggah`,
+      complete: dashboard.dokumen > 0,
+      href: routes.dokumen,
+    },
+  ];
+
+  const completed = checklist.filter((item) => item.complete).length;
+
+  const documentStatus = [
+    { label: "Tervalidasi", count: dashboard.tervalidasi },
+    { label: "Menunggu", count: dashboard.menunggu },
+    { label: "Perlu revisi", count: dashboard.perluRevisi },
+    { label: "Ditolak", count: dashboard.ditolak },
+  ];
+
   return (
-    <main className="space-y-6 pb-8">
-      {/* Header */}
-      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+    <main className="space-y-6 py-6 sm:py-8">
+      <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-medium text-emerald-700">
-            Dashboard Mahasiswa
-          </p>
-          <h1 className="mt-1 text-2xl font-bold text-gray-900">
-            Selamat Datang, {profile?.nama_lengkap?.split(" ")[0] ?? "Mahasiswa"}!
-          </h1>
-          <p className="mt-2 text-sm text-gray-500">
-            Pantau data akademik, dokumen, portofolio, dan hasil seleksi
-            prestasimu melalui APRESIA.
+          <h1 className="text-3xl sm:text-4xl">Dashboard mahasiswa</h1>
+          <p className="mt-2 text-sm text-stone-700">
+            {profile.nama_lengkap || "Mahasiswa"}
+            {profile.prodi ? ` · ${profile.prodi}` : ""}
           </p>
         </div>
 
         <button
+          type="button"
           onClick={fetchDashboard}
-          className="inline-flex items-center justify-center gap-2 self-start rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          disabled={loading}
+          className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-stone-300 bg-white px-3 text-sm font-medium text-stone-700 hover:bg-stone-50 disabled:opacity-60"
         >
-          <RefreshCw size={16} />
-          Refresh Data
+          <RefreshCw
+            size={16}
+            aria-hidden="true"
+            className={loading ? "animate-spin motion-reduce:animate-none" : ""}
+          />
+          {loading ? "Memuat…" : "Muat ulang"}
         </button>
-      </div>
+      </header>
 
-      {/* Profil Mahasiswa */}
-      <section className="portal-hero overflow-hidden">
-        <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white/15 text-2xl font-bold">
-            {initialNama}
-          </div>
-
-          <div className="flex-1">
-            <p className="text-sm text-emerald-100">
-              Profil Mahasiswa
-            </p>
-            <h2 className="mt-1 text-xl font-bold">
-              {profile?.nama_lengkap ?? "Nama belum tersedia"}
-            </h2>
-
-            <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-sm text-emerald-50">
-              <span className="flex items-center gap-1.5">
-                <UserRound size={15} />
-                NIM: {profile?.nim ?? "-"}
-              </span>
-              <span className="flex items-center gap-1.5">
-                <GraduationCap size={16} />
-                {profile?.prodi ?? "Program studi belum tersedia"}
-              </span>
-              <span className="flex items-center gap-1.5">
-                <CalendarDays size={15} />
-                Semester {profile?.semester ?? "-"}
-              </span>
-            </div>
-          </div>
-
-          <div className="rounded-xl bg-white/10 p-4 sm:min-w-44">
-            <p className="text-xs text-emerald-100">Fakultas</p>
-            <p className="mt-1 font-semibold">
-              {profile?.fakultas ?? "-"}
-            </p>
-            <p className="mt-2 text-xs text-emerald-100">
-              {profile?.email ?? ""}
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* Statistik */}
-      <section>
-        <div className="mb-4">
-          <h2 className="font-bold text-gray-900">Ringkasan Aktivitas</h2>
-          <p className="mt-1 text-sm text-gray-500">
-            Ringkasan data yang sudah kamu masukkan ke APRESIA.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <StatCard
-            title="Data Akademik"
-            value={dashboard.akademikCount}
-            description="Data akademik tersimpan"
-            icon={<GraduationCap size={22} />}
-            color="blue"
-          />
-
-          <StatCard
-            title="Dokumen Bukti"
-            value={dashboard.dokumenCount}
-            description={`${dashboard.dokumenTervalidasi} dokumen tervalidasi`}
-            icon={<FileText size={22} />}
-            color="purple"
-          />
-
-          <StatCard
-            title="Portofolio Prestasi"
-            value={dashboard.portofolioCount}
-            description="Portofolio tersimpan"
-            icon={<Trophy size={22} />}
-            color="amber"
-          />
-
-          <StatCard
-            title="Dokumen Menunggu"
-            value={dashboard.dokumenMenunggu}
-            description="Menunggu verifikasi admin"
-            icon={<Clock size={22} />}
-            color="green"
-          />
-        </div>
-      </section>
-
-      {/* Kelengkapan Data */}
-      <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
-        <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-          <div>
-            <h2 className="font-bold text-gray-900">
-              Kelengkapan Data
-            </h2>
-            <p className="mt-1 text-sm text-gray-500">
-              Lengkapi tiga bagian utama untuk mendukung proses seleksi.
-            </p>
-          </div>
-
-          <span className="text-xl font-bold text-emerald-700">
-            {persentaseKelengkapan}%
-          </span>
-        </div>
-
-        <div className="mt-4 h-3 overflow-hidden rounded-full bg-gray-100">
-          <div
-            className="h-full rounded-full bg-emerald-500 transition-all"
-            style={{ width: `${persentaseKelengkapan}%` }}
-          />
-        </div>
-
-        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <CompletionItem
-            label="Data Akademik"
-            complete={dashboard.akademikCount > 0}
-          />
-          <CompletionItem
-            label="Dokumen Bukti"
-            complete={dashboard.dokumenCount > 0}
-          />
-          <CompletionItem
-            label="Portofolio Prestasi"
-            complete={dashboard.portofolioCount > 0}
-          />
-        </div>
-
-        <p className="mt-4 text-xs text-gray-400">
-          Persentase ini merupakan indikator pengisian tiga bagian utama,
-          bukan persentase kelulusan seleksi.
+      {error && (
+        <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+          {error}
         </p>
-      </section>
-
-      {/* Menu Utama */}
-      <section>
-        <div className="mb-4">
-          <h2 className="font-bold text-gray-900">Menu Utama</h2>
-          <p className="mt-1 text-sm text-gray-500">
-            Kelola informasi dan dokumen pendukung prestasimu.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <MenuCard
-            title="Data Akademik"
-            description="Lengkapi informasi IPK dan nilai Bahasa Inggris."
-            href="/mahasiswa/data_akademik"
-            icon={<GraduationCap size={23} />}
-            color="blue"
-            action="Kelola Data Akademik"
-          />
-
-          <MenuCard
-            title="Dokumen Bukti"
-            description="Unggah dokumen pendukung dan pantau status verifikasinya."
-            href="/mahasiswa/dokumen"
-            icon={<FileText size={23} />}
-            color="purple"
-            action="Kelola Dokumen"
-          />
-
-          <MenuCard
-            title="Portofolio Prestasi"
-            description="Catat pengalaman organisasi, karya, kontribusi, dan prestasi."
-            href="/mahasiswa/portofolio_prestasi"
-            icon={<Trophy size={23} />}
-            color="amber"
-            action="Kelola Portofolio"
-          />
-
-          <MenuCard
-            title="Pengumuman"
-            description="Lihat hasil seleksi dan penjelasan hasil perhitungan SAW jika sudah dipublikasikan."
-            href="/mahasiswa/pengumuman"
-            icon={<ClipboardCheck size={23} />}
-            color="green"
-            action="Lihat Pengumuman"
-          />
-        </div>
-      </section>
-
-      {/* Status Dokumen */}
-      <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
-        <div className="mb-4 flex items-center gap-2">
-          <FileText size={19} className="text-emerald-700" />
-          <h2 className="font-bold text-gray-900">Status Verifikasi Dokumen</h2>
-        </div>
-
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <StatusItem
-            label="Tervalidasi"
-            value={dashboard.dokumenTervalidasi}
-            color="green"
-          />
-          <StatusItem
-            label="Menunggu"
-            value={dashboard.dokumenMenunggu}
-            color="amber"
-          />
-          <StatusItem
-            label="Perlu Revisi"
-            value={dashboard.dokumenRevisi}
-            color="red"
-          />
-        </div>
-
-        {dashboard.dokumenRevisi > 0 && (
-          <div className="mt-4 flex items-start gap-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
-            <AlertCircle size={17} className="mt-0.5 shrink-0" />
-            Ada dokumen yang memerlukan perbaikan. Silakan periksa catatan
-            admin pada halaman Dokumen Bukti.
-          </div>
-        )}
-      </section>
-
-      {/* Hasil Seleksi */}
-      <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
-        <div className="flex items-center gap-2">
-          <Award size={20} className="text-emerald-700" />
-          <h2 className="font-bold text-gray-900">Hasil Seleksi</h2>
-        </div>
-
-        {dashboard.hasil ? (
-          <div className="mt-4 rounded-xl bg-emerald-50 p-5">
-            <p className="text-sm text-emerald-800">
-              Hasil seleksimu sudah dipublikasikan.
-            </p>
-            <div className="mt-3 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-              <div>
-                <p className="text-sm text-gray-600">Peringkat</p>
-                <p className="mt-1 text-3xl font-bold text-emerald-700">
-                  #{dashboard.hasil.peringkat ?? "-"}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Nilai Preferensi SAW</p>
-                <p className="mt-1 text-3xl font-bold text-gray-900">
-                  {dashboard.hasil.nilai_preferensi !== null
-                    ? Number(dashboard.hasil.nilai_preferensi).toFixed(3)
-                    : "-"}
-                </p>
-              </div>
-              <Link
-                href="/mahasiswa/pengumuman"
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-800"
-              >
-                Lihat Hasil
-                <ArrowRight size={16} />
-              </Link>
-            </div>
-          </div>
-        ) : (
-          <div className="mt-4 rounded-xl bg-gray-50 p-5">
-            <div className="flex items-start gap-3">
-              <Clock size={21} className="mt-0.5 text-amber-600" />
-              <div>
-                <p className="font-semibold text-gray-800">
-                  Belum ada pengumuman hasil seleksi
-                </p>
-                <p className="mt-1 text-sm leading-6 text-gray-500">
-                  Hasil seleksi akan ditampilkan setelah admin menyelesaikan
-                  penilaian dan memublikasikan hasil melalui sistem APRESIA.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-      </section>
-
-      {/* Informasi */}
-      <div className="flex items-start gap-3 rounded-xl border border-blue-100 bg-blue-50 p-4">
-        <Sparkles size={20} className="mt-0.5 shrink-0 text-blue-600" />
-        <div>
-          <p className="font-semibold text-blue-900">
-            Informasi APRESIA
-          </p>
-          <p className="mt-1 text-sm leading-6 text-blue-800">
-            Pastikan informasi akademik, portofolio, dan dokumen bukti yang
-            kamu masukkan sudah benar. Admin akan melakukan verifikasi sebelum
-            data digunakan dalam proses penilaian.
-          </p>
-        </div>
-      </div>
-    </main>
-  );
-}
-
-function StatCard({
-  title,
-  value,
-  description,
-  icon,
-  color,
-}: {
-  title: string;
-  value: number;
-  description: string;
-  icon: React.ReactNode;
-  color: "blue" | "purple" | "amber" | "green";
-}) {
-  const styles = {
-    blue: "bg-blue-50 text-blue-600",
-    purple: "bg-violet-50 text-violet-600",
-    amber: "bg-amber-50 text-amber-600",
-    green: "bg-emerald-50 text-emerald-600",
-  };
-
-  return (
-    <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm text-gray-500">{title}</p>
-          <p className="mt-2 text-2xl font-bold text-gray-900">{value}</p>
-          <p className="mt-1 text-xs text-gray-400">{description}</p>
-        </div>
-        <div className={`rounded-xl p-3 ${styles[color]}`}>{icon}</div>
-      </div>
-    </div>
-  );
-}
-
-function CompletionItem({
-  label,
-  complete,
-}: {
-  label: string;
-  complete: boolean;
-}) {
-  return (
-    <div className="flex items-center gap-2 rounded-lg border border-gray-100 p-3">
-      {complete ? (
-        <CheckCircle2 size={18} className="text-emerald-600" />
-      ) : (
-        <Clock size={18} className="text-amber-500" />
       )}
-      <span className="text-sm text-gray-700">{label}</span>
-      <span
-        className={`ml-auto text-xs font-medium ${
-          complete ? "text-emerald-700" : "text-amber-600"
-        }`}
+
+      <section
+        aria-labelledby="next-action"
+        className="rounded-xl border border-amber-200 border-s-4 border-s-amber-500 bg-[#fff9ea] p-5 sm:p-6"
       >
-        {complete ? "Terisi" : "Belum"}
-      </span>
-    </div>
-  );
-}
+        <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+          <div>
+            <h2 id="next-action" className="text-xl font-semibold text-emerald-950">
+              {action.title}
+            </h2>
+            <p className="mt-1 max-w-xl text-sm leading-6 text-stone-700">
+              {action.description}
+            </p>
+          </div>
 
-function StatusItem({
-  label,
-  value,
-  color,
-}: {
-  label: string;
-  value: number;
-  color: "green" | "amber" | "red";
-}) {
-  const styles = {
-    green: "bg-emerald-50 text-emerald-700",
-    amber: "bg-amber-50 text-amber-700",
-    red: "bg-red-50 text-red-700",
-  };
+          <Link href={action.href} className={`${primaryLink} shrink-0`}>
+            {action.label}
+            <ArrowRight size={16} aria-hidden="true" />
+          </Link>
+        </div>
+      </section>
 
-  return (
-    <div className={`rounded-lg p-4 ${styles[color]}`}>
-      <p className="text-sm">{label}</p>
-      <p className="mt-1 text-2xl font-bold">{value}</p>
-    </div>
-  );
-}
+      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+        <section aria-labelledby="checklist-title" className={panel}>
+          <header className="p-5 sm:p-6">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h2 id="checklist-title" className="text-lg font-semibold text-emerald-950">
+                Kelengkapan data
+              </h2>
+              <span className="text-sm font-semibold text-emerald-800">
+                {completed} dari {checklist.length} bagian terisi
+              </span>
+            </div>
 
-function MenuCard({
-  title,
-  description,
-  href,
-  icon,
-  color,
-  action,
-}: {
-  title: string;
-  description: string;
-  href: string;
-  icon: React.ReactNode;
-  color: "blue" | "purple" | "amber" | "green";
-  action: string;
-}) {
-  const styles = {
-    blue: "bg-blue-50 text-blue-600",
-    purple: "bg-violet-50 text-violet-600",
-    amber: "bg-amber-50 text-amber-600",
-    green: "bg-emerald-50 text-emerald-600",
-  };
+            <progress
+              aria-labelledby="checklist-title"
+              value={completed}
+              max={checklist.length}
+              className="mt-3 block h-2 w-full overflow-hidden rounded-full bg-stone-100 accent-emerald-800 [&::-moz-progress-bar]:bg-emerald-800 [&::-webkit-progress-bar]:bg-stone-100 [&::-webkit-progress-value]:bg-emerald-800"
+            />
+          </header>
 
-  return (
-    <Link
-      href={href}
-      className="group rounded-xl border border-gray-100 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md"
-    >
-      <div className="flex items-start justify-between">
-        <div className={`rounded-xl p-3 ${styles[color]}`}>{icon}</div>
-        <ArrowRight
-          size={19}
-          className="text-gray-300 transition group-hover:translate-x-1 group-hover:text-emerald-600"
-        />
+          <ul className="divide-y divide-stone-200 border-t border-stone-200">
+            {checklist.map((item) => (
+              <li key={item.href}>
+                <Link
+                  href={item.href}
+                  className="group flex items-center gap-3 px-5 py-4 hover:bg-stone-50 sm:px-6"
+                >
+                  {item.complete ? (
+                    <CheckCircle2 size={20} aria-hidden="true" className="shrink-0 text-emerald-700" />
+                  ) : (
+                    <Circle size={20} aria-hidden="true" className="shrink-0 text-stone-400" />
+                  )}
+
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold text-stone-900">
+                      {item.label}
+                    </span>
+                    <span className="mt-0.5 block text-sm text-stone-600">
+                      {item.detail}
+                    </span>
+                  </span>
+
+                  <ArrowRight
+                    size={16}
+                    aria-hidden="true"
+                    className="shrink-0 text-emerald-800 transition-transform group-hover:translate-x-0.5"
+                  />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <section aria-labelledby="documents-title" className={`${panel} p-5 sm:p-6`}>
+          <h2 id="documents-title" className="text-lg font-semibold text-emerald-950">
+            Verifikasi dokumen
+          </h2>
+
+          {dashboard.dokumen === 0 ? (
+            <p className="mt-3 text-sm text-stone-600">Belum ada dokumen yang diunggah.</p>
+          ) : (
+            <dl className="mt-3 divide-y divide-stone-200">
+              {documentStatus.map(({ label, count }) => (
+                <div key={label} className="flex justify-between gap-3 py-2.5 text-sm">
+                  <dt className="text-stone-700">{label}</dt>
+                  <dd className="font-semibold tabular-nums text-emerald-950">{count}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+
+          <Link href={routes.dokumen} className={`${textLink} mt-2`}>
+            Buka dokumen bukti
+            <ArrowRight size={15} aria-hidden="true" />
+          </Link>
+        </section>
       </div>
 
-      <h3 className="mt-4 font-semibold text-gray-900">{title}</h3>
-      <p className="mt-2 min-h-10 text-sm leading-6 text-gray-500">
-        {description}
-      </p>
+      <section aria-labelledby="result-title" className={`${panel} p-5 sm:p-6`}>
+        <h2 id="result-title" className="text-lg font-semibold text-emerald-950">
+          Hasil seleksi
+        </h2>
 
-      <p className="mt-4 text-sm font-semibold text-emerald-700">
-        {action}
-      </p>
-    </Link>
+        {hasil ? (
+          <dl className="mt-4 flex flex-wrap gap-x-12 gap-y-4">
+            <div>
+              <dt className="text-sm text-stone-600">Peringkat</dt>
+              <dd className="mt-1 text-2xl font-semibold tabular-nums text-emerald-950">
+                {hasil.peringkat ?? "—"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-sm text-stone-600">Nilai preferensi SAW</dt>
+              <dd className="mt-1 text-2xl font-semibold tabular-nums text-emerald-950">
+                {hasil.nilai_preferensi === null
+                  ? "—"
+                  : Number(hasil.nilai_preferensi).toLocaleString("id-ID", {
+                      minimumFractionDigits: 3,
+                      maximumFractionDigits: 3,
+                    })}
+              </dd>
+            </div>
+          </dl>
+        ) : (
+          <p className="mt-2 text-sm text-stone-600">Belum ada hasil yang dipublikasikan.</p>
+        )}
+
+        <Link href={routes.pengumuman} className={`${textLink} mt-2`}>
+          {hasil ? "Lihat rincian hasil" : "Buka pengumuman"}
+          <ArrowRight size={15} aria-hidden="true" />
+        </Link>
+      </section>
+
+      <details className={`${panel} p-5 sm:p-6`}>
+        <summary className="cursor-pointer font-semibold text-emerald-950">
+          Detail profil mahasiswa
+        </summary>
+        <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
+          {[
+            { label: "NIM", value: profile.nim },
+            { label: "Fakultas", value: profile.fakultas },
+            { label: "Semester", value: profile.semester },
+            { label: "Email", value: profile.email },
+          ].map(({ label, value }) => (
+            <div key={label} className="min-w-0">
+              <dt className="text-stone-600">{label}</dt>
+              <dd className="mt-1 break-words font-medium text-stone-900">{value ?? "—"}</dd>
+            </div>
+          ))}
+        </dl>
+      </details>
+    </main>
   );
 }

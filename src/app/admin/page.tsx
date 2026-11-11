@@ -1,370 +1,302 @@
 "use client";
 
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-
-import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
 import {
-  Users,
-  FileCheck,
-  FileClock,
-  Trophy,
+  AlertCircle,
+  ArrowRight,
   Calculator,
   ClipboardList,
+  FileCheck,
   RefreshCw,
-  AlertCircle,
-  ArrowUpRight,
+  Settings2,
 } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
+
+const routes = {
+  mahasiswa: "/admin/data_mahasiswa",
+  verifikasi: "/admin/verifikasi_bukti",
+  kriteria: "/admin/data_kriteria",
+  saw: "/admin/perhitungan_saw",
+  ranking: "/admin/ranking",
+};
 
 type DashboardStats = {
-  totalMahasiswa: number;
-  totalDokumen: number;
-  dokumenMenunggu: number;
-  dokumenTervalidasi: number;
-  totalPenilaian: number;
-  hasilPublikasi: number;
+  mahasiswa: number;
+  dokumen: number;
+  menunggu: number;
+  tervalidasi: number;
+  penilaian: number;
+  publikasi: number;
 };
 
-const initialStats: DashboardStats = {
-  totalMahasiswa: 0,
-  totalDokumen: 0,
-  dokumenMenunggu: 0,
-  dokumenTervalidasi: 0,
-  totalPenilaian: 0,
-  hasilPublikasi: 0,
-};
+const formatNumber = new Intl.NumberFormat("id-ID");
 
 export default function AdminPage() {
-  const supabase = createClient();
-
-  const [stats, setStats] = useState<DashboardStats>(initialStats);
+  const supabase = useMemo(() => createClient(), []);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  async function fetchDashboardData() {
+  const loadDashboard = useCallback(async () => {
     setLoading(true);
     setError("");
 
     try {
-      const [
+      const countRows = (
+        table: "login" | "dokumen_bukti" | "hasil_penilaian"
+      ) => supabase.from(table).select("*", { count: "exact", head: true });
+
+      const [mahasiswa, dokumen, menunggu, tervalidasi, penilaian, publikasi] =
+        await Promise.all([
+          countRows("login").eq("role", "mahasiswa"),
+          countRows("dokumen_bukti"),
+          countRows("dokumen_bukti").eq("status_verifikasi", "menunggu"),
+          countRows("dokumen_bukti").eq("status_verifikasi", "tervalidasi"),
+          countRows("hasil_penilaian"),
+          countRows("hasil_penilaian").eq("status_publikasi", true),
+        ]);
+
+      const failed = [
         mahasiswa,
         dokumen,
         menunggu,
         tervalidasi,
         penilaian,
         publikasi,
-      ] = await Promise.all([
-        supabase
-          .from("login")
-          .select("*", { count: "exact", head: true })
-          .eq("role", "mahasiswa"),
+      ].find((result) => result.error);
 
-        supabase
-          .from("dokumen_bukti")
-          .select("*", { count: "exact", head: true }),
-
-        supabase
-          .from("dokumen_bukti")
-          .select("*", { count: "exact", head: true })
-          .eq("status_verifikasi", "menunggu"),
-
-        supabase
-          .from("dokumen_bukti")
-          .select("*", { count: "exact", head: true })
-          .eq("status_verifikasi", "tervalidasi"),
-
-        supabase
-          .from("hasil_penilaian")
-          .select("*", { count: "exact", head: true }),
-
-        supabase
-          .from("hasil_penilaian")
-          .select("*", { count: "exact", head: true })
-          .eq("status_publikasi", true),
-      ]);
-
-      const results = [
-        mahasiswa,
-        dokumen,
-        menunggu,
-        tervalidasi,
-        penilaian,
-        publikasi,
-      ];
-
-      const failed = results.find((result) => result.error);
-
-      if (failed?.error) {
-        throw failed.error;
-      }
+      if (failed?.error) throw failed.error;
 
       setStats({
-        totalMahasiswa: mahasiswa.count ?? 0,
-        totalDokumen: dokumen.count ?? 0,
-        dokumenMenunggu: menunggu.count ?? 0,
-        dokumenTervalidasi: tervalidasi.count ?? 0,
-        totalPenilaian: penilaian.count ?? 0,
-        hasilPublikasi: publikasi.count ?? 0,
+        mahasiswa: mahasiswa.count ?? 0,
+        dokumen: dokumen.count ?? 0,
+        menunggu: menunggu.count ?? 0,
+        tervalidasi: tervalidasi.count ?? 0,
+        penilaian: penilaian.count ?? 0,
+        publikasi: publikasi.count ?? 0,
       });
     } catch (err) {
-      console.error("Gagal mengambil data dashboard:", err);
-      setError(
-        "Data dashboard gagal dimuat. Periksa koneksi Supabase dan kebijakan akses tabel."
-      );
+      console.error("Gagal memuat dashboard admin:", err);
+      setError("Data dashboard gagal dimuat. Coba muat ulang.");
     } finally {
       setLoading(false);
     }
-  }
+  }, [supabase]);
 
   useEffect(() => {
-    fetchDashboardData();
-  }, []);
+    void loadDashboard();
+  }, [loadDashboard]);
 
-  const cards = [
+  const summary = stats
+    ? [
+        {
+          label: "Mahasiswa terdaftar",
+          value: stats.mahasiswa,
+          href: routes.mahasiswa,
+        },
+        {
+          label: "Total dokumen bukti",
+          value: stats.dokumen,
+          href: routes.verifikasi,
+        },
+        {
+          label: "Data penilaian",
+          value: stats.penilaian,
+          href: routes.saw,
+        },
+        {
+          label: "Hasil dipublikasikan",
+          value: stats.publikasi,
+          href: routes.ranking,
+        },
+      ]
+    : [];
+
+  const shortcuts = [
     {
-      title: "Total Mahasiswa",
-      href: "/admin/data_mahasiswa",
-      value: stats.totalMahasiswa,
-      description: "Mahasiswa terdaftar",
-      icon: Users,
-      color: "bg-blue-50 text-blue-600",
+      label: "Atur kriteria SAW",
+      description: "Tinjau kriteria, jenis, dan bobot penilaian.",
+      href: routes.kriteria,
+      icon: Settings2,
     },
     {
-      title: "Total Dokumen",
-      href: "/admin/verifikasi_bukti",
-      value: stats.totalDokumen,
-      description: "Dokumen yang diunggah",
-      icon: ClipboardList,
-      color: "bg-purple-50 text-purple-600",
-    },
-    {
-      title: "Menunggu Verifikasi",
-      href: "/admin/verifikasi_bukti",
-      value: stats.dokumenMenunggu,
-      description: "Dokumen perlu diperiksa",
-      icon: FileClock,
-      color: "bg-amber-50 text-amber-600",
-    },
-    {
-      title: "Dokumen Tervalidasi",
-      href: "/admin/verifikasi_bukti",
-      value: stats.dokumenTervalidasi,
-      description: "Dokumen telah diverifikasi",
-      icon: FileCheck,
-      color: "bg-green-50 text-green-600",
-    },
-    {
-      title: "Total Penilaian",
-      href: "/admin/perhitungan_saw",
-      value: stats.totalPenilaian,
-      description: "Data penilaian SAW",
+      label: "Buka perhitungan SAW",
+      description: "Kelola nilai dan jalankan perhitungan.",
+      href: routes.saw,
       icon: Calculator,
-      color: "bg-indigo-50 text-indigo-600",
     },
     {
-      title: "Hasil Dipublikasikan",
-      href: "/admin/ranking",
-      value: stats.hasilPublikasi,
-      description: "Hasil ranking dipublikasikan",
-      icon: Trophy,
-      color: "bg-rose-50 text-rose-600",
+      label: "Buka hasil ranking",
+      description: "Tinjau peringkat dan status publikasi.",
+      href: routes.ranking,
+      icon: ClipboardList,
     },
   ];
 
-  const verificationProgress =
-    stats.totalDokumen > 0
-      ? Math.round(
-          (stats.dokumenTervalidasi / stats.totalDokumen) * 100
-        )
-      : 0;
-
   return (
-    <main className="min-h-screen bg-slate-50 p-5 md:p-8">
-      {/* Header */}
-      <div className="portal-hero mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+    <main className="space-y-6 py-6 sm:py-8">
+      <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="hero-eyebrow mb-2 text-xs font-bold uppercase tracking-widest">
-            Seleksi Prestasi Mahasiswa
+          <h1 className="text-3xl sm:text-4xl">Dashboard penilaian</h1>
+          <p className="mt-2 text-sm text-stone-700">
+            Pantau verifikasi bukti dan hasil seleksi mahasiswa.
           </p>
-          <h1 className="text-2xl font-bold text-slate-800 md:text-3xl">
-            Dashboard Penilaian
-          </h1>
-          <p className="hero-description mt-2 text-sm leading-relaxed">
-            Kelola verifikasi bukti dan penilaian mahasiswa dengan metode Simple Additive Weighting.
-          </p>
-          <div className="hero-actions">
-            <Link href="/admin/perhitungan_saw">Mulai Penilaian SAW</Link>
-            <Link href="/admin/verifikasi_bukti">Verifikasi Bukti</Link>
-          </div>
         </div>
 
         <button
-          onClick={fetchDashboardData}
+          type="button"
+          onClick={loadDashboard}
           disabled={loading}
-          className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-stone-300 bg-white px-3 text-sm font-medium text-stone-700 hover:bg-stone-50 disabled:opacity-60"
         >
           <RefreshCw
             size={16}
-            className={loading ? "animate-spin" : ""}
+            aria-hidden="true"
+            className={loading ? "animate-spin motion-reduce:animate-none" : ""}
           />
-          Refresh Data
+          {loading ? "Memuat…" : "Muat ulang"}
         </button>
-      </div>
+      </header>
 
-      {/* Error */}
       {error && (
-        <div className="mb-6 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          <AlertCircle size={20} className="mt-0.5 shrink-0" />
-          <div>
-            <p className="font-semibold">Terjadi kesalahan</p>
-            <p className="mt-1">{error}</p>
-          </div>
-        </div>
+        <p
+          role="alert"
+          className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800"
+        >
+          <AlertCircle size={18} aria-hidden="true" className="shrink-0" />
+          {error}
+        </p>
       )}
 
-      {/* Statistik */}
-      <div className="mb-8 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
-        {cards.map((card) => {
-          const Icon = card.icon;
+      {loading && !stats && (
+        <p role="status" className="text-sm text-stone-700">
+          Mengambil data penilaian…
+        </p>
+      )}
 
-          return (
-            <Link
-              href={card.href}
-              key={card.title}
-              className="portal-stat rounded-2xl border bg-white p-5 transition"
+      {stats && (
+        <>
+          <section
+            aria-labelledby="verification-title"
+            className="rounded-xl border border-amber-200 border-s-4 border-s-amber-500 bg-[#fff9ea] p-5 sm:p-6"
+          >
+            <div className="flex flex-col items-start justify-between gap-5 sm:flex-row sm:items-center">
+              <div>
+                <h2
+                  id="verification-title"
+                  className="flex items-center gap-2 font-semibold text-emerald-950"
+                >
+                  <FileCheck size={19} aria-hidden="true" />
+                  Antrean verifikasi
+                </h2>
+
+                <p className="mt-2 text-2xl font-semibold text-stone-900">
+                  {stats.menunggu > 0
+                    ? `${formatNumber.format(stats.menunggu)} dokumen menunggu verifikasi`
+                    : "Tidak ada dokumen dalam antrean"}
+                </p>
+
+                <p className="mt-2 text-sm text-stone-700">
+                  {stats.dokumen > 0
+                    ? `${formatNumber.format(stats.tervalidasi)} dari ${formatNumber.format(stats.dokumen)} dokumen sudah tervalidasi.`
+                    : "Belum ada dokumen bukti yang diunggah."}
+                </p>
+              </div>
+
+              <Link
+                href={routes.verifikasi}
+                className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-emerald-950 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-800"
+              >
+                {stats.menunggu > 0 ? "Verifikasi bukti" : "Lihat dokumen"}
+                <ArrowRight size={16} aria-hidden="true" />
+              </Link>
+            </div>
+          </section>
+
+          <section
+            aria-labelledby="summary-title"
+            className="rounded-xl border border-stone-200 bg-white"
+          >
+            <h2
+              id="summary-title"
+              className="px-5 py-4 text-lg font-semibold text-emerald-950 sm:px-6"
             >
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm font-medium text-slate-500">
-                    {card.title}
-                  </p>
+              Ringkasan penilaian
+            </h2>
 
-                  <h2 className="mt-3 text-3xl font-bold text-slate-800">
-                    {loading ? "..." : card.value.toLocaleString("id-ID")}
-                  </h2>
+            <ul className="grid gap-px border-t border-stone-200 bg-stone-200 sm:grid-cols-2 xl:grid-cols-4">
+              {summary.map(({ label, value, href }) => (
+                <li key={label} className="min-w-0 bg-white">
+                  <Link
+                    href={href}
+                    className="group flex h-full items-start justify-between gap-3 px-5 py-4 transition-colors hover:bg-stone-50 sm:px-6"
+                  >
+                    <span>
+                      <span className="block text-sm text-stone-700">
+                        {label}
+                      </span>
+                      <span className="mt-1 block text-2xl font-semibold tabular-nums text-emerald-950">
+                        {formatNumber.format(value)}
+                      </span>
+                    </span>
 
-                  <p className="mt-2 text-xs text-slate-400">
-                    {card.description}
-                  </p>
-                </div>
+                    <ArrowRight
+                      size={16}
+                      aria-hidden="true"
+                      className="mt-1 shrink-0 text-emerald-800 motion-safe:transition-transform motion-safe:group-hover:translate-x-0.5"
+                    />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        </>
+      )}
 
-                <div className={`rounded-xl p-3 ${card.color}`}>
-                  <Icon size={23} />
-                </div>
-              </div>
-            </Link>
-          );
-        })}
-      </div>
+      <section
+        aria-labelledby="shortcuts-title"
+        className="rounded-xl border border-stone-200 bg-white"
+      >
+        <h2
+          id="shortcuts-title"
+          className="px-5 py-4 text-lg font-semibold text-emerald-950 sm:px-6"
+        >
+          Kelola penilaian
+        </h2>
 
-      {/* Ringkasan Verifikasi */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <section className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
-          <div className="mb-5 flex items-center justify-between">
-            <div>
-              <h2 className="font-bold text-slate-800">
-                Progres Verifikasi Dokumen
-              </h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Persentase dokumen yang telah tervalidasi.
-              </p>
-            </div>
-            <div className="rounded-xl bg-emerald-50 p-3 text-emerald-600">
-              <FileCheck size={22} />
-            </div>
-          </div>
+        <ul className="divide-y divide-stone-200 border-t border-stone-200">
+          {shortcuts.map(({ label, description, href, icon: Icon }) => (
+            <li key={href}>
+              <Link
+                href={href}
+                className="group flex items-center gap-3 px-5 py-4 transition-colors hover:bg-stone-50 sm:px-6"
+              >
+                <Icon
+                  size={20}
+                  aria-hidden="true"
+                  className="shrink-0 text-emerald-800"
+                />
 
-          <div className="mb-3 flex items-end justify-between">
-            <span className="text-3xl font-bold text-emerald-600">
-              {loading ? "..." : `${verificationProgress}%`}
-            </span>
-            <span className="text-sm text-slate-500">
-              {stats.dokumenTervalidasi} dari {stats.totalDokumen} dokumen
-            </span>
-          </div>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-semibold text-stone-900">
+                    {label}
+                  </span>
+                  <span className="mt-0.5 block text-sm text-stone-600">
+                    {description}
+                  </span>
+                </span>
 
-          <div className="h-3 w-full overflow-hidden rounded-full bg-slate-100">
-            <div
-              className="h-full rounded-full bg-emerald-500 transition-all duration-500"
-              style={{ width: `${verificationProgress}%` }}
-            />
-          </div>
-
-          <div className="mt-5 grid grid-cols-2 gap-3">
-            <div className="rounded-xl bg-amber-50 p-4">
-              <p className="text-xs text-amber-700">
-                Menunggu Verifikasi
-              </p>
-              <p className="mt-1 text-xl font-bold text-amber-700">
-                {loading ? "..." : stats.dokumenMenunggu}
-              </p>
-            </div>
-
-            <div className="rounded-xl bg-emerald-50 p-4">
-              <p className="text-xs text-emerald-700">
-                Telah Tervalidasi
-              </p>
-              <p className="mt-1 text-xl font-bold text-emerald-700">
-                {loading ? "..." : stats.dokumenTervalidasi}
-              </p>
-            </div>
-          </div>
-        </section>
-
-        {/* Ringkasan SAW */}
-        <section className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
-          <div className="mb-5 flex items-center justify-between">
-            <div>
-              <h2 className="font-bold text-slate-800">
-                Ringkasan Perhitungan SAW
-              </h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Status penilaian dan publikasi hasil.
-              </p>
-            </div>
-            <div className="rounded-xl bg-indigo-50 p-3 text-indigo-600">
-              <Calculator size={22} />
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <div className="flex items-center justify-between rounded-xl bg-slate-50 p-4">
-              <div>
-                <p className="text-sm text-slate-500">
-                  Data Penilaian
-                </p>
-                <p className="mt-1 text-xl font-bold text-slate-800">
-                  {loading ? "..." : stats.totalPenilaian}
-                </p>
-              </div>
-              <ClipboardList className="text-indigo-500" size={25} />
-            </div>
-
-            <div className="flex items-center justify-between rounded-xl bg-slate-50 p-4">
-              <div>
-                <p className="text-sm text-slate-500">
-                  Hasil Dipublikasikan
-                </p>
-                <p className="mt-1 text-xl font-bold text-slate-800">
-                  {loading ? "..." : stats.hasilPublikasi}
-                </p>
-              </div>
-              <Trophy className="text-amber-500" size={25} />
-            </div>
-
-            <p className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-xs leading-relaxed text-blue-700">
-              Perhitungan SAW dilakukan berdasarkan data mahasiswa
-              yang telah melalui proses verifikasi dan validasi admin.
-            </p>
-          </div>
-        </section>
-      </div>
-
-      {/* Footer */}
-      <div className="mt-8 flex flex-col justify-between gap-2 border-t border-slate-200 pt-5 text-xs text-slate-400 sm:flex-row">
-        <p>APRESIA - Sistem Pendukung Keputusan Penghargaan Mahasiswa</p>
-        <p>Panel Administrator</p>
-      </div>
+                <ArrowRight
+                  size={16}
+                  aria-hidden="true"
+                  className="shrink-0 text-emerald-800 motion-safe:transition-transform motion-safe:group-hover:translate-x-0.5"
+                />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </section>
     </main>
   );
 }
