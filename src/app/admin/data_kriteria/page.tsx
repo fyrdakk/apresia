@@ -102,6 +102,7 @@ export default function DataKriteriaPage() {
     });
   }
 
+
   async function handleSave(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
@@ -139,29 +140,50 @@ export default function DataKriteriaPage() {
     setSaving(true);
 
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("kriteria")
         .update({
           nama_kriteria: form.nama_kriteria.trim(),
           deskripsi: form.deskripsi.trim() || null,
           bobot: bobotBaru,
         })
-        .eq("id", selected.id);
+        .eq("id", selected.id)
+        .select("id, kode, nama_kriteria, deskripsi, bobot, jenis")
+        .maybeSingle();
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
+
+      if (!data) {
+        throw new Error(
+          "Tidak ada data yang diperbarui. Periksa izin UPDATE RLS pada tabel kriteria."
+        );
+      }
+
+      await fetchKriteria();
+
+      setSelected(null);
+      setForm({
+        nama_kriteria: "",
+        deskripsi: "",
+        bobot: "",
+      });
 
       setSuccess("Data kriteria berhasil diperbarui.");
-      closeEdit();
-      await fetchKriteria();
-    } catch (err) {
+
+    } catch (err: any) {
       console.error("Gagal memperbarui kriteria:", err);
+
       setError(
-        "Gagal menyimpan perubahan. Periksa izin UPDATE pada tabel kriteria."
+        err?.message ||
+        "Gagal menyimpan perubahan data kriteria."
       );
     } finally {
       setSaving(false);
     }
   }
+
 
   return (
     <main className="min-h-screen bg-slate-50 p-5 md:p-8">
