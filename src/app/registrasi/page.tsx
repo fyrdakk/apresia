@@ -1,5 +1,6 @@
 "use client";
 
+import AuthBrand from "@/components/auth-brand";
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { createClient } from "@/lib/supabase/client";
@@ -150,23 +151,10 @@ export default function RegistrasiPage() {
     "mb-1.5 block text-sm font-semibold text-slate-700";
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#f4f7f5] px-4 py-10">
-      <div className="w-full max-w-lg rounded-2xl border border-slate-100 bg-white p-7 shadow-lg sm:p-10">
-
-        {/* Logo */}
-        <div className="mb-7 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl bg-[#047244] text-2xl font-bold text-white">
-            A
-          </div>
-
-          <h1 className="mt-3 text-2xl font-bold tracking-wider text-[#047244]">
-            APRESIA
-          </h1>
-
-          <p className="mt-1 text-sm text-slate-500">
-            Sistem Penghargaan Mahasiswa
-          </p>
-        </div>
+    <main className="auth-layout">
+      <AuthBrand />
+      <section className="auth-form-panel">
+      <div className="w-full max-w-lg rounded-2xl border border-emerald-100 bg-white p-7 shadow-lg sm:p-10">
 
         {/* Judul */}
         <div className="mb-6">
@@ -174,9 +162,9 @@ export default function RegistrasiPage() {
             Pendaftaran Mahasiswa
           </p>
 
-          <h2 className="text-2xl font-bold text-slate-900">
+          <h1 className="text-2xl font-bold text-slate-900">
             Buat Akun Baru
-          </h2>
+          </h1>
 
           <p className="mt-2 text-sm leading-6 text-slate-500">
             Lengkapi data diri untuk membuat akun Apresia.
@@ -405,9 +393,10 @@ export default function RegistrasiPage() {
         </p>
 
         <p className="mt-7 text-center text-xs text-slate-400">
-          © 2026 Apresia. All rights reserved.
+          Â© 2026 Apresia. All rights reserved.
         </p>
       </div>
+      </section>
     </main>
   );
 }

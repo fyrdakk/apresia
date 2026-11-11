@@ -1,21 +1,7 @@
-
 import type { ReactNode } from "react";
-import AdminSidebar from "@/components/admin/admin_sidebar";
+import PortalShell from "@/components/portal-shell";
 
-export default function AdminLayout({
-  children,
-}: {
-  children: ReactNode;
-}) {
-  return (
-    <div className="flex min-h-screen bg-gray-50">
-      {/* Sidebar Admin */}
-      <AdminSidebar />
-
-      {/* Konten Halaman */}
-      <main className="flex-1 min-w-0">
-        {children}
-      </main>
-    </div>
-  );
+export default function Layout({ children }: { children: ReactNode }) {
+  return <PortalShell role="admin">{children}</PortalShell>;
 }
+

@@ -362,7 +362,7 @@ export default function RankingPage() {
             disabled={
               publishingAll || loading || totalBelumPublikasi === 0
             }
-            className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {publishingAll ? (
               <Loader2 size={16} className="animate-spin" />
@@ -608,7 +608,7 @@ export default function RankingPage() {
                           disabled={updatingId === item.id}
                           className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-xs font-medium disabled:opacity-50 ${item.status_publikasi
                               ? "border border-gray-200 text-gray-600 hover:bg-gray-50"
-                              : "bg-emerald-600 text-white hover:bg-emerald-700"
+                              : "bg-emerald-700 text-white hover:bg-emerald-800"
                             }`}
                         >
                           {updatingId === item.id ? (

@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -121,6 +123,7 @@ export default function AdminPage() {
   const cards = [
     {
       title: "Total Mahasiswa",
+      href: "/admin/data_mahasiswa",
       value: stats.totalMahasiswa,
       description: "Mahasiswa terdaftar",
       icon: Users,
@@ -128,6 +131,7 @@ export default function AdminPage() {
     },
     {
       title: "Total Dokumen",
+      href: "/admin/verifikasi_bukti",
       value: stats.totalDokumen,
       description: "Dokumen yang diunggah",
       icon: ClipboardList,
@@ -135,6 +139,7 @@ export default function AdminPage() {
     },
     {
       title: "Menunggu Verifikasi",
+      href: "/admin/verifikasi_bukti",
       value: stats.dokumenMenunggu,
       description: "Dokumen perlu diperiksa",
       icon: FileClock,
@@ -142,6 +147,7 @@ export default function AdminPage() {
     },
     {
       title: "Dokumen Tervalidasi",
+      href: "/admin/verifikasi_bukti",
       value: stats.dokumenTervalidasi,
       description: "Dokumen telah diverifikasi",
       icon: FileCheck,
@@ -149,6 +155,7 @@ export default function AdminPage() {
     },
     {
       title: "Total Penilaian",
+      href: "/admin/perhitungan_saw",
       value: stats.totalPenilaian,
       description: "Data penilaian SAW",
       icon: Calculator,
@@ -156,6 +163,7 @@ export default function AdminPage() {
     },
     {
       title: "Hasil Dipublikasikan",
+      href: "/admin/ranking",
       value: stats.hasilPublikasi,
       description: "Hasil ranking dipublikasikan",
       icon: Trophy,
@@ -173,17 +181,21 @@ export default function AdminPage() {
   return (
     <main className="min-h-screen bg-slate-50 p-5 md:p-8">
       {/* Header */}
-      <div className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+      <div className="portal-hero mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
         <div>
-          <p className="mb-1 text-sm font-medium text-emerald-600">
-            APRESIA / ADMIN
+          <p className="hero-eyebrow mb-2 text-xs font-bold uppercase tracking-widest">
+            Seleksi Prestasi Mahasiswa
           </p>
           <h1 className="text-2xl font-bold text-slate-800 md:text-3xl">
-            Dashboard Admin
+            Dashboard Penilaian
           </h1>
-          <p className="mt-2 text-sm text-slate-500">
-            Ringkasan pengelolaan dan penilaian prestasi mahasiswa.
+          <p className="hero-description mt-2 text-sm leading-relaxed">
+            Kelola verifikasi bukti dan penilaian mahasiswa dengan metode Simple Additive Weighting.
           </p>
+          <div className="hero-actions">
+            <Link href="/admin/perhitungan_saw">Mulai Penilaian SAW</Link>
+            <Link href="/admin/verifikasi_bukti">Verifikasi Bukti</Link>
+          </div>
         </div>
 
         <button
@@ -216,9 +228,10 @@ export default function AdminPage() {
           const Icon = card.icon;
 
           return (
-            <div
+            <Link
+              href={card.href}
               key={card.title}
-              className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-md"
+              className="portal-stat rounded-2xl border bg-white p-5 transition"
             >
               <div className="flex items-start justify-between">
                 <div>
@@ -239,7 +252,7 @@ export default function AdminPage() {
                   <Icon size={23} />
                 </div>
               </div>
-            </div>
+            </Link>
           );
         })}
       </div>

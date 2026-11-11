@@ -424,7 +424,7 @@ export default function DataMahasiswaPage() {
             <div className="border-t border-slate-100 p-5">
               <button
                 onClick={() => setSelectedMahasiswa(null)}
-                className="w-full rounded-xl bg-emerald-600 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700"
+                className="w-full rounded-xl bg-emerald-600 py-3 text-sm font-semibold text-white transition hover:bg-emerald-800"
               >
                 Tutup
               </button>

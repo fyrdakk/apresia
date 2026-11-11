@@ -1,5 +1,6 @@
 "use client";
 
+import AuthBrand from "@/components/auth-brand";
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
@@ -77,23 +78,10 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#f4f7f5] px-4 py-10">
-      <div className="w-full max-w-md rounded-2xl border border-slate-100 bg-white p-8 shadow-lg sm:p-10">
-
-        {/* Logo */}
-        <div className="mb-8 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl bg-[#047244] text-2xl font-bold text-white">
-            A
-          </div>
-
-          <h1 className="mt-4 text-2xl font-bold tracking-wider text-[#047244]">
-            APRESIA
-          </h1>
-
-          <p className="mt-2 text-sm text-slate-500">
-            Sistem Penghargaan Mahasiswa
-          </p>
-        </div>
+    <main className="auth-layout">
+      <AuthBrand />
+      <section className="auth-form-panel">
+      <div className="w-full max-w-md rounded-2xl border border-emerald-100 bg-white p-8 shadow-lg sm:p-10">
 
         {/* Judul */}
         <div className="mb-7">
@@ -101,9 +89,9 @@ export default function LoginPage() {
             Selamat Datang
           </p>
 
-          <h2 className="text-2xl font-bold text-slate-900">
+          <h1 className="text-2xl font-bold text-slate-900">
             Masuk ke Akun
-          </h2>
+          </h1>
 
           <p className="mt-2 text-sm leading-6 text-slate-500">
             Masukkan email dan password untuk melanjutkan ke akun Apresia.
@@ -207,9 +195,10 @@ export default function LoginPage() {
         </p>
 
         <p className="mt-8 text-center text-xs text-slate-400">
-          © 2026 Apresia. All rights reserved.
+          Â© 2026 Apresia. All rights reserved.
         </p>
       </div>
+      </section>
     </main>
   );
 }

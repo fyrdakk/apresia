@@ -266,7 +266,7 @@ export default function MahasiswaPage() {
       </div>
 
       {/* Profil Mahasiswa */}
-      <section className="overflow-hidden rounded-2xl bg-gradient-to-r from-emerald-700 to-green-600 p-6 text-white shadow-sm">
+      <section className="portal-hero overflow-hidden">
         <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
           <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white/15 text-2xl font-bold">
             {initialNama}
@@ -508,7 +508,7 @@ export default function MahasiswaPage() {
               </div>
               <Link
                 href="/mahasiswa/pengumuman"
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-700"
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-800"
               >
                 Lihat Hasil
                 <ArrowRight size={16} />

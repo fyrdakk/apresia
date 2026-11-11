@@ -680,7 +680,7 @@ export default function VerifikasiBuktiPage() {
                                     <button
                                         onClick={() => updateStatus("tervalidasi")}
                                         disabled={saving}
-                                        className="flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+                                        className="flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 py-3 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-60"
                                     >
                                         <CheckCircle2 size={16} />
                                         Validasi
