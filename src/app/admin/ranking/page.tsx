@@ -39,6 +39,7 @@ type HasilPenilaian = {
   peringkat: number | null;
   status_validasi: string | null;
   status_publikasi: boolean | null;
+  tanggal_publikasi: string | null;
 };
 
 type RankingItem = HasilPenilaian & {
@@ -82,7 +83,7 @@ export default function RankingPage() {
       const { data: hasil, error: hasilError } = await supabase
         .from("hasil_penilaian")
         .select(
-          "id, mahasiswa_id, nilai_c1, nilai_c2, nilai_c3, nilai_c4, nilai_c5, nilai_preferensi, peringkat, status_validasi, status_publikasi"
+          "id, mahasiswa_id, nilai_c1, nilai_c2, nilai_c3, nilai_c4, nilai_c5, nilai_preferensi, peringkat, status_validasi, status_publikasi, tanggal_publikasi"
         )
         .eq("status_validasi", "tervalidasi")
         .order("peringkat", { ascending: true });
@@ -193,7 +194,11 @@ export default function RankingPage() {
       setData((prev) =>
         prev.map((row) =>
           row.id === item.id
-            ? { ...row, status_publikasi: statusBaru }
+            ? {
+                ...row,
+                status_publikasi: statusBaru,
+                tanggal_publikasi: statusBaru ? new Date().toISOString() : null,
+              }
             : row
         )
       );
@@ -229,12 +234,14 @@ export default function RankingPage() {
 
     try {
       const ids = belumPublikasi.map((item) => item.id);
+      const tanggalPublikasi = new Date().toISOString();
 
       const { error: updateError } = await supabase
         .from("hasil_penilaian")
         .update({
           status_publikasi: true,
-          updated_at: new Date().toISOString(),
+          tanggal_publikasi: tanggalPublikasi,
+          updated_at: tanggalPublikasi,
         })
         .in("id", ids);
 
@@ -243,7 +250,7 @@ export default function RankingPage() {
       setData((prev) =>
         prev.map((item) =>
           ids.includes(item.id)
-            ? { ...item, status_publikasi: true }
+            ? { ...item, status_publikasi: true, tanggal_publikasi: tanggalPublikasi }
             : item
         )
       );
@@ -290,7 +297,7 @@ Penilaian meliputi IPK sebesar ${item.nilai_c1 ?? "-"}, kemampuan bahasa Inggris
       const timeout = setTimeout(() => controller.abort(), 12000);
 
       try {
-        const response = await fetch("/api/ai-explanation", {
+        const response = await fetch("/api/ai-explanation-admin", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

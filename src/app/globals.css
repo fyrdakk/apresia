@@ -210,8 +210,8 @@ button:not(:disabled) {
   min-width: 0;
 }
 
-.portal-content > main,
-.portal-content > div {
+.portal-content>main,
+.portal-content>div {
   background: transparent;
 }
 
@@ -327,13 +327,13 @@ button:not(:disabled) {
   background: #ffe5a3;
 }
 
-.hero-actions a + a {
+.hero-actions a+a {
   border: 1px solid #b4c7ae;
   background: #204f37;
   color: #fff;
 }
 
-.hero-actions a + a:hover {
+.hero-actions a+a:hover {
   background: #346449;
 }
 
@@ -453,7 +453,7 @@ button:not(:disabled) {
   padding: 1.1rem 1rem 3rem;
 }
 
-.auth-form-panel > div {
+.auth-form-panel>div {
   border: 1px solid #ddd8c1;
   border-radius: 1.4rem;
   background: #fff;
