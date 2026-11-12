@@ -1,4 +1,3 @@
-
 import { NextResponse } from "next/server";
 
 // Penjelasan cadangan jika Groq tidak tersedia
