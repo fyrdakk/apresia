@@ -11,6 +11,7 @@ import {
   FileText,
   Loader2,
   RefreshCw,
+  Sparkles,
   Trophy,
   XCircle,
 } from "lucide-react";
@@ -46,16 +47,64 @@ type ProfilMahasiswa = {
   semester: number | null;
 };
 
+type KontribusiKriteria = {
+  kode: string;
+  nama: string;
+  bobot: number;
+  normalisasi: number;
+  kontribusi: number;
+};
+
 const KRITERIA = [
-  { kode: "C1", nama: "IPK", bobot: "30%", nilai: "nilai_c1", normalisasi: "normalisasi_c1" },
-  { kode: "C2", nama: "Kemampuan Bahasa Inggris", bobot: "20%", nilai: "nilai_c2", normalisasi: "normalisasi_c2" },
-  { kode: "C3", nama: "Keaktifan dan Jabatan Organisasi", bobot: "20%", nilai: "nilai_c3", normalisasi: "normalisasi_c3" },
-  { kode: "C4", nama: "Karya Ilmiah dan Kontribusi Mahasiswa", bobot: "20%", nilai: "nilai_c4", normalisasi: "normalisasi_c4" },
-  { kode: "C5", nama: "Prestasi dan Sertifikasi", bobot: "10%", nilai: "nilai_c5", normalisasi: "normalisasi_c5" },
+  {
+    kode: "C1",
+    nama: "IPK",
+    bobot: "30%",
+    nilai: "nilai_c1",
+    normalisasi: "normalisasi_c1",
+  },
+  {
+    kode: "C2",
+    nama: "Kemampuan Bahasa Inggris (TOEFL)",
+    bobot: "20%",
+    nilai: "nilai_c2",
+    normalisasi: "normalisasi_c2",
+  },
+  {
+    kode: "C3",
+    nama: "Keaktifan dan Jabatan Organisasi",
+    bobot: "20%",
+    nilai: "nilai_c3",
+    normalisasi: "normalisasi_c3",
+  },
+  {
+    kode: "C4",
+    nama: "Karya Ilmiah dan Kontribusi Mahasiswa",
+    bobot: "20%",
+    nilai: "nilai_c4",
+    normalisasi: "normalisasi_c4",
+  },
+  {
+    kode: "C5",
+    nama: "Prestasi dan Sertifikasi",
+    bobot: "10%",
+    nilai: "nilai_c5",
+    normalisasi: "normalisasi_c5",
+  },
 ] as const;
 
-function formatNumber(value: number | null | undefined, digits = 3) {
-  if (value === null || value === undefined || Number.isNaN(Number(value))) return "—";
+function formatNumber(
+  value: number | null | undefined,
+  digits = 3
+) {
+  if (
+    value === null ||
+    value === undefined ||
+    Number.isNaN(Number(value))
+  ) {
+    return "—";
+  }
+
   return Number(value).toLocaleString("id-ID", {
     minimumFractionDigits: 0,
     maximumFractionDigits: digits,
@@ -64,8 +113,11 @@ function formatNumber(value: number | null | undefined, digits = 3) {
 
 function formatDate(value?: string | null) {
   if (!value) return "—";
+
   const date = new Date(value);
+
   if (Number.isNaN(date.getTime())) return "—";
+
   return date.toLocaleDateString("id-ID", {
     day: "numeric",
     month: "long",
@@ -75,18 +127,54 @@ function formatDate(value?: string | null) {
 
 function getErrorMessage(error: unknown) {
   if (error instanceof Error) return error.message;
+
   if (error && typeof error === "object" && "message" in error) {
     return String((error as { message: unknown }).message);
   }
+
   return "Terjadi kesalahan saat memuat pengumuman.";
+}
+
+// Penjelasan cadangan yang seluruh faktanya dihitung dari data SAW.
+function createLocalExplanation(
+  nama: string,
+  peringkat: number | null,
+  nilaiPreferensi: number | null,
+  kontribusi: KontribusiKriteria[]
+) {
+  const urutan = [...kontribusi].sort((a, b) => b.kontribusi - a.kontribusi);
+  const terbesar = urutan[0];
+  const maxKontribusi = terbesar?.kontribusi ?? 0;
+  const kriteriaTerbesar = urutan
+    .filter((item) => Math.abs(item.kontribusi - maxKontribusi) < 1e-9)
+    .map((item) => item.nama)
+    .join(' dan ');
+  const rincian = KRITERIA.map((k) => {
+    const item = kontribusi.find((x) => x.kode === k.kode)!;
+    return `${item.nama} ${formatNumber(item.kontribusi, 4)}`;
+  }).join(', ');
+  const nilaiTerendah = Math.min(...kontribusi.map((item) => item.normalisasi));
+  const aspekPengembangan = kontribusi
+    .filter((item) => Math.abs(item.normalisasi - nilaiTerendah) < 1e-9)
+    .map((item) => item.nama)
+    .join(' dan ');
+
+  return `Berdasarkan perhitungan metode Simple Additive Weighting (SAW), ${nama} memperoleh peringkat ${peringkat ?? '—'} dengan nilai preferensi ${formatNumber(nilaiPreferensi, 4)}. Kontribusi terbesar berasal dari ${kriteriaTerbesar}; rincian kontribusi setiap kriteria adalah ${rincian}.\n\nSelamat atas pencapaian yang telah diraih. Pertahankan hasil yang sudah baik dan terus kembangkan potensi diri; ${aspekPengembangan} dapat menjadi salah satu aspek yang diperhatikan dalam pengembangan berikutnya.`;
 }
 
 export default function PengumumanPage() {
   const supabase = useMemo(() => createClient(), []);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
   const [hasil, setHasil] = useState<HasilPenilaian | null>(null);
   const [profil, setProfil] = useState<ProfilMahasiswa | null>(null);
+
+  // State AI Explanation
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiExplanation, setAiExplanation] = useState("");
+  const [aiSource, setAiSource] = useState("");
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -99,7 +187,12 @@ export default function PengumumanPage() {
       } = await supabase.auth.getUser();
 
       if (authError) throw authError;
-      if (!user) throw new Error("Sesi login tidak ditemukan. Silakan login kembali.");
+
+      if (!user) {
+        throw new Error(
+          "Sesi login tidak ditemukan. Silakan login kembali."
+        );
+      }
 
       const [hasilResult, profilResult] = await Promise.all([
         supabase
@@ -109,6 +202,7 @@ export default function PengumumanPage() {
           )
           .eq("mahasiswa_id", user.id)
           .maybeSingle(),
+
         supabase
           .from("login")
           .select("nama_lengkap, nim, prodi, fakultas, semester")
@@ -119,8 +213,17 @@ export default function PengumumanPage() {
       if (hasilResult.error) throw hasilResult.error;
       if (profilResult.error) throw profilResult.error;
 
-      setHasil((hasilResult.data as HasilPenilaian | null) ?? null);
-      setProfil((profilResult.data as ProfilMahasiswa | null) ?? null);
+      setHasil(
+        (hasilResult.data as HasilPenilaian | null) ?? null
+      );
+
+      setProfil(
+        (profilResult.data as ProfilMahasiswa | null) ?? null
+      );
+
+      // Reset penjelasan jika data pengumuman dimuat ulang
+      setAiExplanation("");
+      setAiSource("");
     } catch (err) {
       console.error("GAGAL MEMUAT PENGUMUMAN:", err);
       setError(getErrorMessage(err));
@@ -128,6 +231,102 @@ export default function PengumumanPage() {
       setLoading(false);
     }
   }, [supabase]);
+
+  // Membuat penjelasan AI khusus mahasiswa.
+  const handleAIExplanation = async () => {
+    if (!hasil || !profil || aiLoading) return;
+
+    setAiLoading(true);
+    setAiExplanation("");
+    setAiSource("");
+
+    try {
+      const kontribusiKriteria: KontribusiKriteria[] = KRITERIA.map((item) => {
+        const rawNormalisasi = hasil[item.normalisasi];
+        const normalisasi = Number(rawNormalisasi);
+        const bobot = Number(item.bobot.replace("%", "")) / 100;
+
+        if (
+          rawNormalisasi === null ||
+          rawNormalisasi === undefined ||
+          !Number.isFinite(normalisasi) ||
+          normalisasi < 0 ||
+          normalisasi > 1
+        ) {
+          throw new Error(`Data normalisasi ${item.kode} tidak valid.`);
+        }
+
+        return {
+          kode: item.kode,
+          nama: item.nama,
+          bobot,
+          normalisasi,
+          kontribusi: bobot * normalisasi,
+        };
+      });
+
+      const fallback = createLocalExplanation(
+        profil.nama_lengkap,
+        hasil.peringkat,
+        hasil.nilai_preferensi,
+        kontribusiKriteria
+      );
+
+      // Endpoint mahasiswa terpisah; endpoint AI Admin tidak disentuh.
+      const response = await fetch("/api/ai-explanation-mhs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nama: profil.nama_lengkap,
+          peringkat: hasil.peringkat,
+          nilai_preferensi: hasil.nilai_preferensi,
+          kontribusi_kriteria: kontribusiKriteria,
+        }),
+      });
+
+      const result = await response.json().catch(() => null);
+
+      if (!response.ok || typeof result?.explanation !== "string" || !result.explanation.trim()) {
+        console.warn("Groq tidak tersedia; penjelasan cadangan digunakan.", result?.error ?? response.status);
+        setAiExplanation(fallback);
+        setAiSource("fallback");
+        return;
+      }
+
+      setAiExplanation(result.explanation.trim());
+      setAiSource(result.source === "groq" ? "groq" : "fallback");
+    } catch (err) {
+      console.warn("AI Explanation menggunakan penjelasan cadangan:", err);
+
+      try {
+        const kontribusiKriteria: KontribusiKriteria[] = KRITERIA.map((item) => {
+          const normalisasi = Number(hasil[item.normalisasi]);
+          const bobot = Number(item.bobot.replace("%", "")) / 100;
+          if (!Number.isFinite(normalisasi) || normalisasi < 0 || normalisasi > 1) {
+            throw new Error(`Data normalisasi ${item.kode} tidak valid.`);
+          }
+          return {
+            kode: item.kode,
+            nama: item.nama,
+            bobot,
+            normalisasi,
+            kontribusi: bobot * normalisasi,
+          };
+        });
+        setAiExplanation(createLocalExplanation(
+          profil.nama_lengkap,
+          hasil.peringkat,
+          hasil.nilai_preferensi,
+          kontribusiKriteria
+        ));
+      } catch {
+        setAiExplanation("Penjelasan belum dapat dibuat karena data normalisasi penilaian belum lengkap. Silakan hubungi admin.");
+      }
+      setAiSource("fallback");
+    } finally {
+      setAiLoading(false);
+    }
+  };
 
   useEffect(() => {
     void loadData();
@@ -190,15 +389,22 @@ export default function PengumumanPage() {
               <Bell size={17} />
               APRESIA · Informasi Mahasiswa
             </div>
-            <h1 className="text-2xl font-bold text-gray-900">Pengumuman Hasil Seleksi</h1>
+
+            <h1 className="text-2xl font-bold text-gray-900">
+              Pengumuman Hasil Seleksi
+            </h1>
+
             <p className="mt-1 text-sm text-gray-500">
-              Informasi hasil penilaian dan perangkingan penerima penghargaan mahasiswa.
+              Informasi hasil penilaian dan perangkingan penerima
+              penghargaan mahasiswa.
             </p>
           </div>
+
           <button
             type="button"
             onClick={() => void loadData()}
-            className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            disabled={loading}
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <RefreshCw size={16} />
             Muat Ulang
@@ -212,32 +418,50 @@ export default function PengumumanPage() {
           </div>
         )}
 
+        {/* Data Peserta */}
         <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm md:p-6">
           <div className="flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-green-50 text-green-700">
               <FileText size={22} />
             </div>
+
             <div>
-              <h2 className="font-semibold text-gray-900">Data Peserta</h2>
-              <p className="text-sm text-gray-500">Identitas kandidat yang sedang login</p>
+              <h2 className="font-semibold text-gray-900">
+                Data Peserta
+              </h2>
+              <p className="text-sm text-gray-500">
+                Identitas kandidat yang sedang login
+              </p>
             </div>
           </div>
+
           <div className="mt-5 grid gap-4 sm:grid-cols-2">
             <div>
               <p className="text-xs text-gray-500">Nama Lengkap</p>
-              <p className="mt-1 font-medium text-gray-900">{profil?.nama_lengkap || "—"}</p>
+              <p className="mt-1 font-medium text-gray-900">
+                {profil?.nama_lengkap || "—"}
+              </p>
             </div>
+
             <div>
               <p className="text-xs text-gray-500">NIM</p>
-              <p className="mt-1 font-medium text-gray-900">{profil?.nim || "—"}</p>
+              <p className="mt-1 font-medium text-gray-900">
+                {profil?.nim || "—"}
+              </p>
             </div>
+
             <div>
               <p className="text-xs text-gray-500">Program Studi</p>
-              <p className="mt-1 font-medium text-gray-900">{profil?.prodi || "—"}</p>
+              <p className="mt-1 font-medium text-gray-900">
+                {profil?.prodi || "—"}
+              </p>
             </div>
+
             <div>
               <p className="text-xs text-gray-500">Fakultas</p>
-              <p className="mt-1 font-medium text-gray-900">{profil?.fakultas || "—"}</p>
+              <p className="mt-1 font-medium text-gray-900">
+                {profil?.fakultas || "—"}
+              </p>
             </div>
           </div>
         </section>
@@ -247,11 +471,16 @@ export default function PengumumanPage() {
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-gray-100 text-gray-500">
               <Clock3 size={26} />
             </div>
-            <h2 className="mt-4 text-lg font-semibold text-gray-900">Belum Ada Hasil Penilaian</h2>
+
+            <h2 className="mt-4 text-lg font-semibold text-gray-900">
+              Belum Ada Hasil Penilaian
+            </h2>
+
             <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-gray-500">
-              Data penilaian Anda belum tersedia. Pastikan data akademik, portofolio,
-              dan dokumen bukti telah dilengkapi. Admin akan melakukan verifikasi
-              dan penilaian sebelum hasil diumumkan.
+              Data penilaian Anda belum tersedia. Pastikan data
+              akademik, portofolio, dan dokumen bukti telah
+              dilengkapi. Admin akan melakukan verifikasi dan
+              penilaian sebelum hasil diumumkan.
             </p>
           </section>
         ) : !sudahDiumumkan ? (
@@ -260,95 +489,156 @@ export default function PengumumanPage() {
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white text-blue-700">
                 <Clock3 size={25} />
               </div>
+
               <div>
-                <h2 className="text-lg font-bold text-blue-900">Pengumuman Belum Dipublikasikan</h2>
+                <h2 className="text-lg font-bold text-blue-900">
+                  Pengumuman Belum Dipublikasikan
+                </h2>
+
                 <p className="mt-2 text-sm leading-6 text-blue-800">
-                  Hasil penilaian Anda sudah tercatat di sistem, tetapi admin belum
-                  memublikasikan pengumuman. Silakan periksa halaman ini kembali
-                  setelah pengumuman resmi diterbitkan.
+                  Hasil penilaian Anda sudah tercatat di sistem,
+                  tetapi admin belum memublikasikan pengumuman.
+                  Silakan periksa halaman ini kembali setelah
+                  pengumuman resmi diterbitkan.
                 </p>
+
                 <p className="mt-3 text-xs text-blue-700">
-                  Status validasi: {hasil.status_validasi || "Belum ditentukan"}
+                  Status validasi:{" "}
+                  {hasil.status_validasi || "Belum ditentukan"}
                 </p>
               </div>
             </div>
           </section>
         ) : (
           <>
+            {/* Hasil Pengumuman */}
             <section className="overflow-hidden rounded-xl border border-green-200 bg-white shadow-sm">
               <div className="bg-green-700 px-5 py-5 text-white md:px-7">
                 <div className="flex items-center gap-3">
                   <Trophy size={26} />
+
                   <div>
-                    <p className="text-sm text-green-100">Pengumuman Resmi APRESIA</p>
-                    <h2 className="text-xl font-bold">Hasil Penilaian Mahasiswa</h2>
+                    <p className="text-sm text-green-100">
+                      Pengumuman Resmi APRESIA
+                    </p>
+
+                    <h2 className="text-xl font-bold">
+                      Hasil Penilaian Mahasiswa
+                    </h2>
                   </div>
                 </div>
               </div>
+
               <div className="grid gap-5 p-5 sm:grid-cols-2 md:p-7">
                 <div className="rounded-xl bg-green-50 p-5">
-                  <p className="text-sm font-medium text-green-800">Peringkat Anda</p>
+                  <p className="text-sm font-medium text-green-800">
+                    Peringkat Anda
+                  </p>
+
                   <div className="mt-2 flex items-center gap-3">
                     <Award className="h-9 w-9 text-green-700" />
+
                     <p className="text-4xl font-bold text-green-800">
                       {hasil.peringkat ? `#${hasil.peringkat}` : "—"}
                     </p>
                   </div>
                 </div>
+
                 <div className="rounded-xl bg-gray-50 p-5">
-                  <p className="text-sm font-medium text-gray-600">Nilai Preferensi (Vi)</p>
+                  <p className="text-sm font-medium text-gray-600">
+                    Nilai Preferensi (Vi)
+                  </p>
+
                   <p className="mt-2 text-4xl font-bold text-gray-900">
                     {formatNumber(hasil.nilai_preferensi, 4)}
                   </p>
-                  <p className="mt-1 text-xs text-gray-500">Hasil akhir perhitungan metode SAW</p>
+
+                  <p className="mt-1 text-xs text-gray-500">
+                    Hasil akhir perhitungan metode SAW
+                  </p>
                 </div>
               </div>
+
               <div className="border-t border-gray-100 px-5 py-4 md:px-7">
                 <div className="flex flex-wrap items-center gap-2 text-sm">
                   {tervalidasi ? (
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-3 py-1.5 font-semibold text-green-700">
-                      <CheckCircle2 size={15} /> Penilaian tervalidasi
+                      <CheckCircle2 size={15} />
+                      Penilaian tervalidasi
                     </span>
                   ) : (
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1.5 font-semibold text-amber-700">
-                      <Clock3 size={15} /> Status: {hasil.status_validasi}
+                      <Clock3 size={15} />
+                      Status: {hasil.status_validasi}
                     </span>
                   )}
+
                   <span className="inline-flex items-center gap-1.5 text-xs text-gray-500">
                     <CalendarDays size={14} />
-                    Dipublikasikan: {formatDate(hasil.tanggal_publikasi)}
+                    Dipublikasikan:{" "}
+                    {formatDate(hasil.tanggal_publikasi)}
                   </span>
                 </div>
               </div>
             </section>
 
+            {/* Rincian Penilaian */}
             <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm md:p-6">
               <div className="mb-5">
-                <h2 className="text-lg font-semibold text-gray-900">Rincian Penilaian</h2>
+                <h2 className="text-lg font-semibold text-gray-900">
+                  Rincian Penilaian
+                </h2>
+
                 <p className="mt-1 text-sm text-gray-500">
-                  Nilai setiap kriteria yang digunakan dalam perhitungan SAW.
+                  Nilai setiap kriteria yang digunakan dalam
+                  perhitungan SAW.
                 </p>
               </div>
+
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[620px] text-left text-sm">
                   <thead>
                     <tr className="border-b border-gray-200 text-xs uppercase text-gray-500">
-                      <th className="px-3 py-3 font-semibold">Kriteria</th>
-                      <th className="px-3 py-3 font-semibold">Nama Kriteria</th>
-                      <th className="px-3 py-3 text-right font-semibold">Bobot</th>
-                      <th className="px-3 py-3 text-right font-semibold">Nilai</th>
-                      <th className="px-3 py-3 text-right font-semibold">Normalisasi</th>
+                      <th className="px-3 py-3 font-semibold">
+                        Kriteria
+                      </th>
+                      <th className="px-3 py-3 font-semibold">
+                        Nama Kriteria
+                      </th>
+                      <th className="px-3 py-3 text-right font-semibold">
+                        Bobot
+                      </th>
+                      <th className="px-3 py-3 text-right font-semibold">
+                        Nilai
+                      </th>
+                      <th className="px-3 py-3 text-right font-semibold">
+                        Normalisasi
+                      </th>
                     </tr>
                   </thead>
+
                   <tbody>
                     {KRITERIA.map((item) => (
-                      <tr key={item.kode} className="border-b border-gray-100 last:border-0">
-                        <td className="px-3 py-4 font-semibold text-green-700">{item.kode}</td>
-                        <td className="px-3 py-4 text-gray-700">{item.nama}</td>
-                        <td className="px-3 py-4 text-right text-gray-700">{item.bobot}</td>
+                      <tr
+                        key={item.kode}
+                        className="border-b border-gray-100 last:border-0"
+                      >
+                        <td className="px-3 py-4 font-semibold text-green-700">
+                          {item.kode}
+                        </td>
+
+                        <td className="px-3 py-4 text-gray-700">
+                          {item.nama}
+                        </td>
+
+                        <td className="px-3 py-4 text-right text-gray-700">
+                          {item.bobot}
+                        </td>
+
                         <td className="px-3 py-4 text-right font-medium text-gray-900">
                           {formatNumber(hasil[item.nilai])}
                         </td>
+
                         <td className="px-3 py-4 text-right text-gray-700">
                           {formatNumber(hasil[item.normalisasi])}
                         </td>
@@ -357,11 +647,88 @@ export default function PengumumanPage() {
                   </tbody>
                 </table>
               </div>
+
               {hasil.catatan && (
                 <div className="mt-5 rounded-lg border border-blue-100 bg-blue-50 p-4">
-                  <p className="text-sm font-semibold text-blue-900">Catatan Admin</p>
+                  <p className="text-sm font-semibold text-blue-900">
+                    Catatan Admin
+                  </p>
+
                   <p className="mt-1 whitespace-pre-line text-sm leading-6 text-blue-800">
                     {hasil.catatan}
+                  </p>
+                </div>
+              )}
+            </section>
+
+            {/* AI Explanation */}
+            <section className="rounded-xl border border-green-200 bg-white p-5 shadow-sm md:p-6">
+              <div className="flex items-start gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-green-50 text-green-700">
+                  <Sparkles size={22} />
+                </div>
+
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    AI Explanation
+                  </h2>
+
+                  <p className="mt-1 text-sm leading-6 text-gray-500">
+                    Dapatkan penjelasan mengenai faktor-faktor
+                    yang berkontribusi terhadap peringkat Anda
+                    berdasarkan hasil perhitungan metode SAW.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleAIExplanation}
+                disabled={aiLoading}
+                className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-green-700 px-4 py-3 text-sm font-semibold text-white transition hover:bg-green-800 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+              >
+                {aiLoading ? (
+                  <>
+                    <Loader2
+                      size={17}
+                      className="animate-spin"
+                    />
+                    Sedang Menganalisis...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={17} />
+                    {aiExplanation
+                      ? "Buat Ulang Penjelasan"
+                      : "Jelaskan Hasil Saya dengan AI"}
+                  </>
+                )}
+              </button>
+
+              {aiExplanation && (
+                <div className="mt-5 rounded-lg border border-green-100 bg-green-50/70 p-5">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 font-semibold text-green-800">
+                      <Sparkles size={17} />
+                      Hasil Analisis AI
+                    </div>
+
+                    <span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-green-700">
+                      {aiSource === "groq"
+                        ? "Groq AI"
+                        : "Penjelasan Cadangan"}
+                    </span>
+                  </div>
+
+                  <p className="whitespace-pre-line text-sm leading-7 text-gray-700">
+                    {aiExplanation}
+                  </p>
+
+                  <p className="mt-4 border-t border-green-100 pt-3 text-xs text-gray-500">
+                    Penjelasan ini dibuat berdasarkan data
+                    hasil perhitungan SPK metode SAW dan tidak
+                    mengubah hasil penilaian maupun peringkat
+                    mahasiswa.
                   </p>
                 </div>
               )}
@@ -370,8 +737,8 @@ export default function PengumumanPage() {
         )}
 
         <p className="text-center text-xs leading-5 text-gray-400">
-          Informasi pada halaman ini ditampilkan berdasarkan data penilaian milik akun
-          mahasiswa yang sedang login.
+          Informasi pada halaman ini ditampilkan berdasarkan data
+          penilaian milik akun mahasiswa yang sedang login.
         </p>
       </div>
     </main>
