@@ -465,101 +465,137 @@ export default function VerifikasiBuktiPage() {
                     </div>
                 </div>
 
-                <div className="overflow-x-auto">
-                    <table className="w-full min-w-[900px] text-left text-sm">
-                        <thead className="bg-slate-50 text-xs uppercase text-slate-500">
-                            <tr>
-                                <th className="px-5 py-4">No.</th>
-                                <th className="px-5 py-4">Mahasiswa</th>
-                                <th className="px-5 py-4">Kategori</th>
-                                <th className="px-5 py-4">Nama Dokumen</th>
-                                <th className="px-5 py-4">Tanggal Upload</th>
-                                <th className="px-5 py-4">Status</th>
-                                <th className="px-5 py-4 text-center">Aksi</th>
-                            </tr>
-                        </thead>
+                <div
+                  className="overflow-x-auto"
+                  role="region"
+                  aria-label="Daftar dokumen mahasiswa"
+                  tabIndex={0}
+                >
+                  <table className="w-full min-w-[46rem] table-fixed text-left text-sm">
+                    <colgroup>
+                      <col className="w-[6%]" />
+                      <col className="w-[18%]" />
+                      <col className="w-[12%]" />
+                      <col className="w-[22%]" />
+                      <col className="w-[15%]" />
+                      <col className="w-[15%]" />
+                      <col className="w-[12%]" />
+                    </colgroup>
 
-                        <tbody className="divide-y divide-slate-100">
-                            {loading ? (
-                                <tr>
-                                    <td colSpan={7} className="px-5 py-12 text-center text-slate-400">
-                                        <RefreshCw
-                                            size={22}
-                                            className="mx-auto mb-3 animate-spin"
-                                        />
-                                        Memuat dokumen...
-                                    </td>
-                                </tr>
-                            ) : filteredDokumen.length === 0 ? (
-                                <tr>
-                                    <td colSpan={7} className="px-5 py-12 text-center">
-                                        <FileText
-                                            size={30}
-                                            className="mx-auto mb-3 text-slate-300"
-                                        />
-                                        <p className="font-medium text-slate-600">
-                                            Dokumen tidak ditemukan
-                                        </p>
-                                        <p className="mt-1 text-xs text-slate-400">
-                                            Belum ada dokumen atau tidak sesuai pencarian.
-                                        </p>
-                                    </td>
-                                </tr>
-                            ) : (
-                                filteredDokumen.map((item, index) => (
-                                    <tr key={item.id} className="hover:bg-emerald-50/40">
-                                        <td className="px-5 py-4 text-slate-500">
-                                            {index + 1}
-                                        </td>
+                    <thead className="bg-emerald-50 text-xs text-emerald-950">
+                      <tr>
+                        <th scope="col" className="px-2 py-3 text-center font-semibold">
+                          No.
+                        </th>
+                        <th scope="col" className="px-2 py-3 font-semibold">
+                          Mahasiswa
+                        </th>
+                        <th scope="col" className="px-2 py-3 font-semibold">
+                          Kategori
+                        </th>
+                        <th scope="col" className="px-2 py-3 font-semibold">
+                          Nama Dokumen
+                        </th>
+                        <th scope="col" className="px-2 py-3 font-semibold">
+                          Tanggal Unggah
+                        </th>
+                        <th scope="col" className="px-2 py-3 text-center font-semibold">
+                          Status
+                        </th>
+                        <th scope="col" className="px-2 py-3 text-center font-semibold">
+                          Aksi
+                        </th>
+                      </tr>
+                    </thead>
 
-                                        <td className="px-5 py-4">
-                                            <p className="font-semibold text-slate-800">
-                                                {item.mahasiswa?.nama_lengkap || "Mahasiswa"}
-                                            </p>
-                                            <p className="mt-1 text-xs text-slate-400">
-                                                {item.mahasiswa?.nim || "-"}
-                                            </p>
-                                        </td>
+                    <tbody className="divide-y divide-stone-100">
+                      {loading ? (
+                        <tr>
+                          <td colSpan={7} className="px-4 py-10 text-center text-stone-600">
+                            <div role="status">
+                              <RefreshCw
+                                size={20}
+                                aria-hidden="true"
+                                className="mx-auto mb-2 motion-safe:animate-spin"
+                              />
+                              Memuat dokumen…
+                            </div>
+                          </td>
+                        </tr>
+                      ) : filteredDokumen.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="px-4 py-10 text-center text-stone-600">
+                            <FileText
+                              size={24}
+                              aria-hidden="true"
+                              className="mx-auto mb-2 text-stone-400"
+                            />
+                            Tidak ada dokumen yang cocok dengan pencarian atau filter.
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredDokumen.map((item, index) => (
+                          <tr
+                            key={item.id}
+                            className="align-middle transition-colors hover:bg-emerald-50/40"
+                          >
+                            <td className="px-2 py-3 text-center tabular-nums text-stone-600">
+                              {index + 1}
+                            </td>
 
-                                        <td className="px-5 py-4 text-slate-600">
-                                            {formatKategori(item.kategori)}
-                                        </td>
+                            <td className="px-2 py-3">
+                              <p className="wrap-anywhere font-semibold text-stone-900">
+                                {item.mahasiswa?.nama_lengkap || "Mahasiswa"}
+                              </p>
+                              <p className="mt-1 wrap-anywhere text-xs tabular-nums text-stone-600">
+                                {item.mahasiswa?.nim || "—"}
+                              </p>
+                            </td>
 
-                                        <td className="px-5 py-4">
-                                            <p className="max-w-48 truncate font-medium text-slate-700">
-                                                {item.nama_file}
-                                            </p>
-                                            <p className="mt-1 text-xs text-slate-400">
-                                                {formatUkuran(item.ukuran_file)}
-                                            </p>
-                                        </td>
+                            <td className="wrap-anywhere px-2 py-3 text-stone-700">
+                              {formatKategori(item.kategori)}
+                            </td>
 
-                                        <td className="px-5 py-4 text-slate-500">
-                                            {formatTanggal(item.created_at)}
-                                        </td>
+                            <td className="px-2 py-3">
+                              <p
+                                className="truncate font-medium text-stone-900"
+                                title={item.nama_file}
+                              >
+                                {item.nama_file}
+                              </p>
+                              <p className="mt-1 text-xs text-stone-600">
+                                {formatUkuran(item.ukuran_file)}
+                              </p>
+                            </td>
 
-                                        <td className="px-5 py-4">
-                                            <span
-                                                className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${getStatusStyle(item.status_verifikasi)}`}
-                                            >
-                                                {getStatusLabel(item.status_verifikasi)}
-                                            </span>
-                                        </td>
+                            <td className="px-2 py-3 text-stone-700">
+                              {formatTanggal(item.created_at)}
+                            </td>
 
-                                        <td className="px-5 py-4 text-center">
-                                            <button
-                                                onClick={() => openDetail(item)}
-                                                className="inline-flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
-                                            >
-                                                <Eye size={15} />
-                                                Periksa
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
+                            <td className="px-2 py-3 text-center">
+                              <span
+                                className={`inline-flex min-h-7 items-center justify-center whitespace-nowrap rounded-md px-2 text-xs font-semibold ${getStatusStyle(item.status_verifikasi)}`}
+                              >
+                                {getStatusLabel(item.status_verifikasi)}
+                              </span>
+                            </td>
+
+                            <td className="px-2 py-3 text-center">
+                              <button
+                                type="button"
+                                onClick={() => openDetail(item)}
+                                aria-label={`Periksa dokumen ${item.nama_file}`}
+                                className="inline-flex min-h-10 items-center justify-center gap-1 whitespace-nowrap rounded-lg bg-emerald-50 px-2 text-xs font-semibold text-emerald-800 transition-colors hover:bg-emerald-100"
+                              >
+                                <Eye size={14} aria-hidden="true" className="shrink-0" />
+                                Periksa
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
                 </div>
 
                 <div className="border-t border-slate-100 px-5 py-4 text-xs text-slate-500">

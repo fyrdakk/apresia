@@ -1,20 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  AlertCircle,
+  BookOpen,
+  Building2,
+  Eye,
+  GraduationCap,
+  Hash,
+  Mail,
+  RefreshCw,
   Search,
   Users,
-  Eye,
-  RefreshCw,
   X,
-  GraduationCap,
-  Mail,
-  Hash,
-  Building2,
-  BookOpen,
-  AlertCircle,
 } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 
 type Mahasiswa = {
   id: string;
@@ -27,8 +27,26 @@ type Mahasiswa = {
   created_at: string;
 };
 
+const semesterOptions = Array.from({ length: 14 }, (_, index) => index + 1);
+
+const columns = [
+  { label: "No.", width: "w-[6%]", align: "text-center" },
+  { label: "Mahasiswa", width: "w-[25%]", align: "text-left" },
+  { label: "NIM", width: "w-[15%]", align: "text-left" },
+  { label: "Program Studi", width: "w-[16%]", align: "text-left" },
+  { label: "Semester", width: "w-[12%]", align: "text-center" },
+  { label: "Fakultas", width: "w-[14%]", align: "text-left" },
+  { label: "Aksi", width: "w-[12%]", align: "text-center" },
+];
+
+const formatTanggal = new Intl.DateTimeFormat("id-ID", {
+  day: "2-digit",
+  month: "long",
+  year: "numeric",
+});
+
 export default function DataMahasiswaPage() {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   const [mahasiswa, setMahasiswa] = useState<Mahasiswa[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,261 +56,240 @@ export default function DataMahasiswaPage() {
   const [selectedMahasiswa, setSelectedMahasiswa] =
     useState<Mahasiswa | null>(null);
 
-  async function fetchMahasiswa() {
+  const fetchMahasiswa = useCallback(async () => {
     setLoading(true);
     setError("");
 
     try {
-      const { data, error } = await supabase
+      const { data, error: queryError } = await supabase
         .from("login")
         .select(
-          "id, nim, nama_lengkap, fakultas, prodi, semester, email, created_at"
+          "id, nim, nama_lengkap, fakultas, prodi, semester, email, created_at",
         )
         .eq("role", "mahasiswa")
         .order("nama_lengkap", { ascending: true });
 
-      if (error) throw error;
+      if (queryError) throw queryError;
 
       setMahasiswa(data ?? []);
     } catch (err) {
       console.error("Gagal mengambil data mahasiswa:", err);
-      setError(
-        "Data mahasiswa gagal dimuat. Periksa koneksi Supabase dan kebijakan RLS."
-      );
+      setError("Data mahasiswa gagal dimuat. Coba muat ulang.");
     } finally {
       setLoading(false);
     }
-  }
+  }, [supabase]);
 
   useEffect(() => {
-    fetchMahasiswa();
-  }, []);
+    void fetchMahasiswa();
+  }, [fetchMahasiswa]);
+
+  useEffect(() => {
+    if (!selectedMahasiswa) return;
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setSelectedMahasiswa(null);
+    }
+
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [selectedMahasiswa]);
+
+  const keyword = search.trim().toLowerCase();
 
   const filteredMahasiswa = mahasiswa.filter((item) => {
-    const keyword = search.toLowerCase();
+    const matchesSearch = [
+      item.nama_lengkap,
+      item.nim,
+      item.email,
+      item.prodi,
+    ].some((value) => (value ?? "").toLowerCase().includes(keyword));
 
-    const cocokPencarian =
-      (item.nama_lengkap ?? "").toLowerCase().includes(keyword) ||
-      (item.nim ?? "").toLowerCase().includes(keyword) ||
-      (item.email ?? "").toLowerCase().includes(keyword) ||
-      (item.prodi ?? "").toLowerCase().includes(keyword);
+    const matchesSemester =
+      filterSemester === "semua" || String(item.semester) === filterSemester;
 
-    const cocokSemester =
-      filterSemester === "semua" ||
-      String(item.semester) === filterSemester;
-
-    return cocokPencarian && cocokSemester;
+    return matchesSearch && matchesSemester;
   });
 
-  const totalMahasiswa = mahasiswa.length;
-
-  const formatTanggal = (tanggal: string) => {
-    return new Date(tanggal).toLocaleDateString("id-ID", {
-      day: "2-digit",
-      month: "long",
-      year: "numeric",
-    });
-  };
-
   return (
-    <main className="min-h-screen bg-slate-50 p-5 md:p-8">
-      {/* Header */}
-      <div className="mb-8">
-        <p className="mb-1 text-sm font-medium text-emerald-600">
-          APRESIA / ADMIN / DATA MAHASISWA
-        </p>
-
-        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-800 md:text-3xl">
-              Data Mahasiswa
-            </h1>
-            <p className="mt-2 text-sm text-slate-500">
-              Kelola dan pantau data mahasiswa yang terdaftar di APRESIA.
-            </p>
-          </div>
-
-          <button
-            onClick={fetchMahasiswa}
-            disabled={loading}
-            className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-60"
-          >
-            <RefreshCw
-              size={16}
-              className={loading ? "animate-spin" : ""}
-            />
-            Refresh Data
-          </button>
+    <main className="min-w-0 space-y-6 py-6 sm:py-8">
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-emerald-950 sm:text-4xl">
+            Data Mahasiswa
+          </h1>
+          <p className="mt-2 text-sm text-stone-600">
+            Lihat dan cari mahasiswa yang terdaftar di APRESIA.
+          </p>
         </div>
-      </div>
 
-      {/* Statistik */}
-      <div className="mb-6 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-        <div className="flex items-center gap-4">
-          <div className="rounded-xl bg-emerald-50 p-3 text-emerald-600">
-            <Users size={25} />
-          </div>
+        <button
+          type="button"
+          onClick={fetchMahasiswa}
+          disabled={loading}
+          className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-700 transition-colors hover:bg-stone-50 disabled:opacity-60"
+        >
+          <RefreshCw
+            size={16}
+            aria-hidden="true"
+            className={loading ? "animate-spin motion-reduce:animate-none" : ""}
+          />
+          {loading ? "Memuat…" : "Muat ulang"}
+        </button>
+      </header>
 
-          <div>
-            <p className="text-sm text-slate-500">
-              Total Mahasiswa Terdaftar
-            </p>
-            <h2 className="text-2xl font-bold text-slate-800">
-              {loading ? "..." : totalMahasiswa}
-            </h2>
-          </div>
+      <section
+        aria-label="Total mahasiswa"
+        className="flex items-center gap-4 rounded-xl border border-stone-200 bg-white p-5"
+      >
+        <div className="rounded-lg bg-emerald-50 p-3 text-emerald-700">
+          <Users size={24} aria-hidden="true" />
         </div>
-      </div>
+        <div>
+          <p className="text-sm text-stone-600">Total mahasiswa terdaftar</p>
+          <p className="mt-1 text-2xl font-semibold tabular-nums text-emerald-950">
+            {loading || error ? "—" : mahasiswa.length.toLocaleString("id-ID")}
+          </p>
+        </div>
+      </section>
 
-      {/* Error */}
       {error && (
-        <div className="mb-6 flex gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          <AlertCircle size={20} className="shrink-0" />
-          <p>{error}</p>
-        </div>
+        <p
+          role="alert"
+          className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800"
+        >
+          <AlertCircle size={18} aria-hidden="true" className="shrink-0" />
+          {error}
+        </p>
       )}
 
-      {/* Tabel */}
-      <section className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
-        {/* Search dan Filter */}
-        <div className="flex flex-col justify-between gap-4 border-b border-slate-100 p-5 md:flex-row md:items-center">
-          <div>
-            <h2 className="font-bold text-slate-800">
-              Daftar Mahasiswa
-            </h2>
-            <p className="mt-1 text-xs text-slate-500">
-              Informasi mahasiswa yang telah melakukan registrasi.
-            </p>
-          </div>
+      <section
+        aria-labelledby="student-list-title"
+        className="min-w-0 overflow-hidden rounded-xl border border-stone-200 bg-white"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-stone-200 p-4 sm:p-5">
+          <h2 id="student-list-title" className="font-semibold text-emerald-950">
+            Daftar Mahasiswa
+          </h2>
 
-          <div className="flex flex-col gap-3 sm:flex-row">
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
             <div className="relative">
               <Search
-                size={18}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                size={17}
+                aria-hidden="true"
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-stone-500"
               />
               <input
-                type="text"
-                placeholder="Cari nama, NIM, email..."
+                type="search"
+                aria-label="Cari mahasiswa"
+                placeholder="Cari nama, NIM, atau email"
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 py-2.5 pl-10 pr-4 text-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 sm:w-64"
+                onChange={(event) => setSearch(event.target.value)}
+                className="min-h-11 w-full rounded-lg border border-stone-300 bg-white pl-9 pr-3 text-sm sm:w-64"
               />
             </div>
 
             <select
+              aria-label="Filter semester"
               value={filterSemester}
-              onChange={(e) => setFilterSemester(e.target.value)}
-              className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-600 outline-none focus:border-emerald-500"
+              onChange={(event) => setFilterSemester(event.target.value)}
+              className="min-h-11 rounded-lg border border-stone-300 bg-white px-3 text-sm text-stone-700"
             >
-              <option value="semua">Semua Semester</option>
-              {Array.from({ length: 14 }, (_, i) => i + 1).map(
-                (semester) => (
-                  <option key={semester} value={String(semester)}>
-                    Semester {semester}
-                  </option>
-                )
-              )}
+              <option value="semua">Semua semester</option>
+              {semesterOptions.map((semester) => (
+                <option key={semester} value={semester}>
+                  Semester {semester}
+                </option>
+              ))}
             </select>
           </div>
         </div>
 
-        {/* Tabel Data */}
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[850px] text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+        <div
+          className="overflow-x-auto"
+          role="region"
+          aria-labelledby="student-list-title"
+          tabIndex={0}
+        >
+          <table className="w-full min-w-[44rem] table-fixed text-left text-sm">
+            <colgroup>
+              {columns.map(({ label, width }) => (
+                <col key={label} className={width} />
+              ))}
+            </colgroup>
+
+            <thead className="bg-emerald-50 text-xs text-emerald-950">
               <tr>
-                <th className="px-5 py-4 font-semibold">No.</th>
-                <th className="px-5 py-4 font-semibold">Mahasiswa</th>
-                <th className="px-5 py-4 font-semibold">NIM</th>
-                <th className="px-5 py-4 font-semibold">Program Studi</th>
-                <th className="px-5 py-4 font-semibold">Semester</th>
-                <th className="px-5 py-4 font-semibold">Fakultas</th>
-                <th className="px-5 py-4 text-center font-semibold">
-                  Aksi
-                </th>
+                {columns.map(({ label, align }) => (
+                  <th
+                    key={label}
+                    scope="col"
+                    className={`px-2 py-3 font-semibold ${align}`}
+                  >
+                    {label}
+                  </th>
+                ))}
               </tr>
             </thead>
 
-            <tbody className="divide-y divide-slate-100">
-              {loading ? (
+            <tbody className="divide-y divide-stone-100">
+              {loading || error || filteredMahasiswa.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={7}
-                    className="px-5 py-12 text-center text-slate-400"
+                    colSpan={columns.length}
+                    className="px-4 py-10 text-center text-stone-600"
                   >
-                    <RefreshCw
-                      size={22}
-                      className="mx-auto mb-3 animate-spin"
-                    />
-                    Memuat data mahasiswa...
-                  </td>
-                </tr>
-              ) : filteredMahasiswa.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={7}
-                    className="px-5 py-12 text-center text-slate-400"
-                  >
-                    <Users
-                      size={30}
-                      className="mx-auto mb-3 text-slate-300"
-                    />
-                    <p className="font-medium text-slate-600">
-                      Data mahasiswa tidak ditemukan
-                    </p>
-                    <p className="mt-1 text-xs">
-                      Coba ubah kata kunci pencarian atau filter.
-                    </p>
+                    {loading ? (
+                      <span role="status">Memuat data mahasiswa…</span>
+                    ) : error ? (
+                      "Daftar mahasiswa belum bisa ditampilkan."
+                    ) : (
+                      "Tidak ada mahasiswa yang cocok dengan pencarian atau filter."
+                    )}
                   </td>
                 </tr>
               ) : (
                 filteredMahasiswa.map((item, index) => (
-                  <tr
-                    key={item.id}
-                    className="transition hover:bg-emerald-50/40"
-                  >
-                    <td className="px-5 py-4 text-slate-500">
+                  <tr key={item.id} className="align-middle hover:bg-emerald-50/40">
+                    <td className="px-2 py-3 text-center tabular-nums text-stone-600">
                       {index + 1}
                     </td>
 
-                    <td className="px-5 py-4">
-                      <div>
-                        <p className="font-semibold text-slate-800">
-                          {item.nama_lengkap || "-"}
-                        </p>
-                        <p className="mt-1 text-xs text-slate-400">
-                          {item.email || "-"}
-                        </p>
-                      </div>
+                    <td className="px-2 py-3">
+                      <p className="font-semibold wrap-anywhere text-stone-900">
+                        {item.nama_lengkap || "—"}
+                      </p>
+                      <p className="mt-1 text-xs wrap-anywhere text-stone-600">
+                        {item.email || "—"}
+                      </p>
                     </td>
 
-                    <td className="px-5 py-4 font-medium text-slate-700">
-                      {item.nim || "-"}
+                    <td className="px-2 py-3 font-medium wrap-anywhere tabular-nums text-stone-800">
+                      {item.nim || "—"}
                     </td>
 
-                    <td className="px-5 py-4 text-slate-600">
-                      {item.prodi || "-"}
+                    <td className="px-2 py-3 wrap-anywhere text-stone-700">
+                      {item.prodi || "—"}
                     </td>
 
-                    <td className="px-5 py-4">
-                      <span className="rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700">
-                        {item.semester
-                          ? `Semester ${item.semester}`
-                          : "-"}
+                    <td className="px-2 py-3 text-center">
+                      <span className="inline-flex h-7 min-w-8 items-center justify-center whitespace-nowrap rounded-md bg-emerald-50 px-2 text-xs font-semibold tabular-nums text-emerald-800">
+                        {item.semester ?? "—"}
                       </span>
                     </td>
 
-                    <td className="px-5 py-4 text-slate-600">
-                      {item.fakultas || "-"}
+                    <td className="px-2 py-3 wrap-anywhere text-stone-700">
+                      {item.fakultas || "—"}
                     </td>
 
-                    <td className="px-5 py-4 text-center">
+                    <td className="px-2 py-3 text-center">
                       <button
+                        type="button"
                         onClick={() => setSelectedMahasiswa(item)}
-                        className="inline-flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100"
+                        aria-label={`Lihat detail ${item.nama_lengkap || "mahasiswa"}`}
+                        className="inline-flex min-h-10 items-center gap-1 whitespace-nowrap rounded-lg bg-emerald-50 px-2 text-xs font-semibold text-emerald-800 transition-colors hover:bg-emerald-100"
                       >
-                        <Eye size={15} />
+                        <Eye size={14} aria-hidden="true" />
                         Detail
                       </button>
                     </td>
@@ -303,132 +300,91 @@ export default function DataMahasiswaPage() {
           </table>
         </div>
 
-        {/* Footer Tabel */}
-        <div className="flex flex-col justify-between gap-2 border-t border-slate-100 px-5 py-4 text-xs text-slate-500 sm:flex-row">
-          <p>
-            Menampilkan {filteredMahasiswa.length} dari{" "}
-            {totalMahasiswa} mahasiswa
+        {!loading && !error && (
+          <p
+            aria-live="polite"
+            className="border-t border-stone-200 px-4 py-3 text-sm text-stone-600 sm:px-5"
+          >
+            Menampilkan {filteredMahasiswa.length} dari {mahasiswa.length} mahasiswa.
           </p>
-          <p>Data bersumber dari database APRESIA</p>
-        </div>
+        )}
       </section>
 
-      {/* Modal Detail */}
       {selectedMahasiswa && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/50 p-4"
           onClick={() => setSelectedMahasiswa(null)}
         >
           <div
-            className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-xl"
-            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="student-detail-title"
+            className="max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-xl bg-white shadow-xl"
+            onClick={(event) => event.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-slate-100 p-5">
-              <div>
-                <h2 className="text-lg font-bold text-slate-800">
-                  Detail Mahasiswa
-                </h2>
-                <p className="mt-1 text-xs text-slate-500">
-                  Informasi lengkap mahasiswa terdaftar.
-                </p>
-              </div>
-
+            <header className="flex items-center justify-between gap-4 border-b border-stone-200 p-5">
+              <h2 id="student-detail-title" className="text-lg font-semibold text-emerald-950">
+                Detail Mahasiswa
+              </h2>
               <button
+                type="button"
+                aria-label="Tutup detail mahasiswa"
                 onClick={() => setSelectedMahasiswa(null)}
-                className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                className="inline-flex size-11 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-100"
               >
-                <X size={20} />
+                <X size={20} aria-hidden="true" />
               </button>
-            </div>
+            </header>
 
-            <div className="space-y-5 p-6">
-              <div className="flex items-center gap-4">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
-                  <GraduationCap size={30} />
+            <div className="space-y-5 p-5">
+              <div className="flex items-center gap-3">
+                <div className="rounded-lg bg-emerald-50 p-3 text-emerald-700">
+                  <GraduationCap size={24} aria-hidden="true" />
                 </div>
-                <div>
-                  <h3 className="font-bold text-slate-800">
-                    {selectedMahasiswa.nama_lengkap || "-"}
-                  </h3>
-                  <p className="mt-1 text-sm text-slate-500">
-                    {selectedMahasiswa.nim || "-"}
-                  </p>
-                </div>
+                <p className="min-w-0 font-semibold wrap-anywhere text-stone-900">
+                  {selectedMahasiswa.nama_lengkap || "—"}
+                </p>
               </div>
 
-              <div className="space-y-4">
+              <dl className="space-y-3">
                 {[
-                  {
-                    label: "Email",
-                    value: selectedMahasiswa.email,
-                    icon: Mail,
-                  },
-                  {
-                    label: "NIM",
-                    value: selectedMahasiswa.nim,
-                    icon: Hash,
-                  },
-                  {
-                    label: "Fakultas",
-                    value: selectedMahasiswa.fakultas,
-                    icon: Building2,
-                  },
-                  {
-                    label: "Program Studi",
-                    value: selectedMahasiswa.prodi,
-                    icon: BookOpen,
-                  },
-                  {
-                    label: "Semester",
-                    value: selectedMahasiswa.semester
-                      ? `Semester ${selectedMahasiswa.semester}`
-                      : "-",
-                    icon: GraduationCap,
-                  },
-                ].map((detail) => {
-                  const Icon = detail.icon;
-
-                  return (
-                    <div
-                      key={detail.label}
-                      className="flex items-center gap-3"
-                    >
-                      <div className="rounded-lg bg-slate-50 p-2 text-slate-500">
-                        <Icon size={17} />
-                      </div>
-                      <div>
-                        <p className="text-xs text-slate-400">
-                          {detail.label}
-                        </p>
-                        <p className="text-sm font-medium text-slate-700">
-                          {detail.value || "-"}
-                        </p>
-                      </div>
+                  { label: "Email", value: selectedMahasiswa.email, icon: Mail },
+                  { label: "NIM", value: selectedMahasiswa.nim, icon: Hash },
+                  { label: "Fakultas", value: selectedMahasiswa.fakultas, icon: Building2 },
+                  { label: "Program Studi", value: selectedMahasiswa.prodi, icon: BookOpen },
+                  { label: "Semester", value: selectedMahasiswa.semester, icon: GraduationCap },
+                ].map(({ label, value, icon: Icon }) => (
+                  <div key={label} className="flex items-start gap-3">
+                    <Icon size={17} aria-hidden="true" className="mt-1 shrink-0 text-emerald-700" />
+                    <div className="min-w-0">
+                      <dt className="text-xs text-stone-600">{label}</dt>
+                      <dd className="mt-1 text-sm font-medium wrap-anywhere text-stone-900">
+                        {value ?? "—"}
+                      </dd>
                     </div>
-                  );
-                })}
-              </div>
+                  </div>
+                ))}
 
-              <div className="rounded-xl bg-slate-50 p-4">
-                <p className="text-xs text-slate-400">
-                  Tanggal Registrasi
-                </p>
-                <p className="mt-1 text-sm font-medium text-slate-700">
-                  {selectedMahasiswa.created_at
-                    ? formatTanggal(selectedMahasiswa.created_at)
-                    : "-"}
-                </p>
-              </div>
+                <div className="rounded-lg bg-stone-50 p-3">
+                  <dt className="text-xs text-stone-600">Tanggal Registrasi</dt>
+                  <dd className="mt-1 text-sm font-medium text-stone-900">
+                    {selectedMahasiswa.created_at
+                      ? formatTanggal.format(new Date(selectedMahasiswa.created_at))
+                      : "—"}
+                  </dd>
+                </div>
+              </dl>
             </div>
 
-            <div className="border-t border-slate-100 p-5">
+            <footer className="border-t border-stone-200 p-5">
               <button
+                type="button"
                 onClick={() => setSelectedMahasiswa(null)}
-                className="w-full rounded-xl bg-emerald-600 py-3 text-sm font-semibold text-white transition hover:bg-emerald-800"
+                className="min-h-11 w-full rounded-lg bg-emerald-950 px-4 text-sm font-semibold text-white hover:bg-emerald-800"
               >
                 Tutup
               </button>
-            </div>
+            </footer>
           </div>
         </div>
       )}
