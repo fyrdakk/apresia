@@ -113,6 +113,48 @@ Mahasiswa                                Administrator
 
 APRESIA menggunakan **lima kriteria** (kode wajib tepat `C1`–`C5`). Seluruh kriteria saat ini bertipe **Benefit**; bobot dibaca dari tabel `kriteria` di database dan dapat diubah admin melalui halaman **Data Kriteria**.
 
+### Sumber dan Dasar Penentuan Bobot
+
+Bobot kriteria APRESIA mengacu pada penelitian Candra, Rawansyah, dan Astuti (2015)
+berjudul *Sistem Pendukung Keputusan Pemilihan Mahasiswa Berprestasi dengan Metode
+Fuzzy Multi-Attribute Decision Making SAW*. Penelitian tersebut memberikan nilai
+prioritas berdasarkan kategori fuzzy, yaitu **High = 0,9**, **Medium = 0,6**, dan
+**Low = 0,3**.
+
+Nilai prioritas tersebut dipetakan ke dalam lima kriteria APRESIA sebagai berikut:
+
+| Kode | Kriteria APRESIA | Kategori fuzzy acuan | Nilai prioritas |
+| --- | --- | --- | ---: |
+| C1 | IPK | High | 0,9 |
+| C2 | Kemampuan Bahasa Inggris (TOEFL) | Medium | 0,6 |
+| C3 | Keaktifan dan Jabatan Organisasi | Medium | 0,6 |
+| C4 | Karya Ilmiah dan Kontribusi Mahasiswa | Medium | 0,6 |
+| C5 | Prestasi dan Sertifikasi | Low | 0,3 |
+| **Total** |  |  | **3,0** |
+
+Nilai prioritas kemudian dinormalisasi agar jumlah seluruh bobot sama dengan 1,00
+atau 100%. Rumus yang digunakan adalah:
+
+```text
+w_j = p_j / Σp_j
+```
+
+Keterangan:
+- `w_j` = bobot akhir kriteria ke-j.
+- `p_j` = nilai prioritas kriteria ke-j.
+- `Σp_j` = jumlah seluruh nilai prioritas, yaitu 3,0.
+
+Hasil normalisasi menghasilkan bobot C1 sebesar **0,30 (30%)**, C2 sebesar
+**0,20 (20%)**, C3 sebesar **0,20 (20%)**, C4 sebesar **0,20 (20%)**, dan C5
+sebesar **0,10 (10%)**.
+
+Panduan Pemilihan Mahasiswa Berprestasi (Pilmapres) Program Sarjana Tahun 2026
+digunakan sebagai referensi untuk menyesuaikan dan mengembangkan indikator
+penilaian, bukan sebagai sumber angka bobot. Dengan demikian, bobot tersebut
+merupakan rancangan pembobotan APRESIA hasil adaptasi dan normalisasi nilai
+prioritas Candra et al. (2015), bukan bobot resmi Pilmapres.
+
+
 | Kode | Kriteria | Sumber Nilai |
 | --- | --- | --- |
 | C1 | IPK | Diambil otomatis dari **Data Akademik** mahasiswa |
@@ -271,7 +313,7 @@ Aplikasi menggunakan layanan Supabase. Berdasarkan kode program, berikut tabel d
 **1. Clone repositori**
 
 ```bash
-git clone <url-repositori-anda>
+git clone https://github.com/fyrdakk/apresia.git
 cd apresia
 ```
 
@@ -415,6 +457,15 @@ Pastikan URL aplikasi hasil deployment juga sudah didaftarkan pada pengaturan **
 
 ## Lisensi
 
-Projek ini dibuat untuk keperluan akademik mata kuliah Sistem Pendukung Keputusan
+Projek ini dibuat untuk keperluan akademik mata kuliah Sistem Pendukung Keputusan.
 
+### Referensi
+
+1. Candra, G. A., Rawansyah, R., & Astuti, E. S. (2015). *Sistem Pendukung Keputusan
+   Pemilihan Mahasiswa Berprestasi dengan Metode Fuzzy Multi-Attribute Decision
+   Making SAW*.
+2. Direktorat Pembelajaran dan Kemahasiswaan. (2026). *Panduan Pemilihan Mahasiswa
+   Berprestasi Program Sarjana Tahun 2026*.
+
+**Repository:** https://github.com/fyrdakk/apresia
 
